@@ -151,7 +151,7 @@
               :key="publication.id"
               :publication="publication"
               @edit="editPublication"
-              @delete="removePublication"
+              @deleted="removePublicationFromList"
             />
           </div>
 
@@ -160,6 +160,45 @@
             class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"
           >
             Vous n'avez pas encore publié d'annonce.
+          </div>
+        </section>
+
+        <!-- =================================================
+             MES FAVORIS
+        ================================================== -->
+
+        <section class="mt-10">
+          <div class="mb-6 flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-bold text-black">
+                Mes favoris
+              </h2>
+
+              <p class="mt-1 text-sm text-slate-500">
+                Les animaux que vous avez ajoutés à vos favoris.
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="favorites.length > 0"
+            class="flex flex-wrap gap-3"
+          >
+            <router-link
+              v-for="animal in favorites"
+              :key="animal.id"
+              :to="`/animals/${animal.id}`"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-blue hover:text-brand-blue"
+            >
+              {{ animal.name }}
+            </router-link>
+          </div>
+
+          <div
+            v-else
+            class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"
+          >
+            Vous n'avez pas encore ajouté de favoris.
           </div>
         </section>
       </template>
@@ -181,17 +220,18 @@ import PublicationForm from '../components/dashboard/PublicationForm.vue'
 
 import { useAuthStore } from '../stores/auth'
 import {
-  fetchPublications,
-  deletePublication as deletePublicationRequest
+  fetchPublications
 } from '../services/publicationService'
+import { fetchFavorites } from '../services/favoriteService'
 
-import type { Publication } from '../types'
+import type { Publication, Animal } from '../types'
 
 const auth = useAuthStore()
 const route = useRoute()
 
 const publications = ref<Publication[]>([])
 const loading = ref(true)
+const favorites = ref<Animal[]>([])
 const favoritesCount = ref(0)
 
 const editingPublication = ref<Publication | null>(null)
@@ -237,6 +277,27 @@ async function loadDashboard(): Promise<void> {
   }
 }
 
+/*
+ * Charge les animaux mis en favori par l'utilisateur connecté,
+ * pour les afficher (noms) et mettre à jour le compteur du dashboard.
+ */
+async function loadFavorites(): Promise<void> {
+  try {
+    const response = await fetchFavorites()
+
+    favorites.value = Array.isArray(response.data)
+      ? (response.data as Animal[])
+      : []
+
+    favoritesCount.value = favorites.value.length
+  } catch (error) {
+    console.error(
+      'Erreur lors du chargement des favoris :',
+      error
+    )
+  }
+}
+
 async function editPublication(publication: Publication) {
   editingPublication.value = { ...publication }
 
@@ -263,33 +324,15 @@ async function handleUpdated() {
 }
 
 /*
- * La confirmation est deja geree dans PublicationCard.vue (etat
- * interne, sans window.confirm). Ici on ne fait plus que l'appel
- * API et la mise a jour de la liste.
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
  */
-async function removePublication(id: number) {
-  try {
-    const response = await deletePublicationRequest(id)
-
-    if (!response.success) {
-      window.alert(
-        response.message ||
-        'Impossible de supprimer la publication.'
-      )
-
-      return
-    }
-
-    publications.value = publications.value.filter(
-      (publication) => publication.id !== id
-    )
-  } catch (error) {
-    console.error('Erreur suppression :', error)
-
-    window.alert(
-      'Une erreur est survenue lors de la suppression.'
-    )
-  }
+function removePublicationFromList(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
+  )
 }
 
 onMounted(async () => {
@@ -298,6 +341,7 @@ onMounted(async () => {
   }
 
   await loadDashboard()
+  await loadFavorites()
 
   /*
    * Si on arrive depuis la page "Animaux" via le bouton "Modifier"

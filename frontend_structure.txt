@@ -1122,13 +1122,14 @@ C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationCard.vue
           Supprimer
         </button>
 
-        <router-link
-          :to="{ path: '/dashboard', query: { edit: publication.id } }"
+        <button
+          type="button"
           class="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          @click="handleEdit"
         >
           <Pencil class="h-4 w-4" />
           Modifier
-        </router-link>
+        </button>
       </div>
     </div>
   </article>
@@ -1137,6 +1138,7 @@ C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationCard.vue
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Pencil, Trash2 } from 'lucide-vue-next'
+import Swal from 'sweetalert2'
 
 import { useAuthStore } from '../../stores/auth'
 import { getImageUrl } from '../../services/imageService'
@@ -1144,11 +1146,21 @@ import { deletePublication } from '../../services/publicationService'
 
 import type { Publication } from '../../types'
 
+/*
+ * La confirmation et le retour (succes/erreur) de suppression sont geres
+ * ici avec SweetAlert2 (https://sweetalert2.github.io/), a la place de
+ * window.confirm() qui pouvait etre bloque silencieusement par le
+ * navigateur. L'appel API est fait directement ici ; une fois la
+ * suppression confirmee cote serveur, on emet "deleted" pour que le
+ * parent (Dashboard ou Animaux) retire la carte de sa liste.
+ */
+
 const props = defineProps<{
   publication: Publication
 }>()
 
 const emit = defineEmits<{
+  edit: [publication: Publication]
   deleted: [id: number]
 }>()
 
@@ -1164,12 +1176,23 @@ const isOwner = computed(() => {
   )
 })
 
-async function handleDelete() {
-  const confirmed = window.confirm(
-    'Voulez-vous vraiment supprimer cette annonce ?'
-  )
+function handleEdit() {
+  emit('edit', props.publication)
+}
 
-  if (!confirmed) {
+async function handleDelete() {
+  const result = await Swal.fire({
+    title: 'ÃŠtes-vous sÃ»r ?',
+    text: 'Cette annonce sera supprimÃ©e dÃ©finitivement.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Oui, supprimer',
+    cancelButtonText: 'Annuler'
+  })
+
+  if (!result.isConfirmed) {
     return
   }
 
@@ -1179,21 +1202,32 @@ async function handleDelete() {
     const response = await deletePublication(props.publication.id)
 
     if (!response.success) {
-      window.alert(
-        response.message ||
-        'Impossible de supprimer cette annonce.'
-      )
+      await Swal.fire({
+        title: 'Erreur',
+        text:
+          response.message ||
+          'Impossible de supprimer cette annonce.',
+        icon: 'error'
+      })
 
       return
     }
+
+    await Swal.fire({
+      title: 'SupprimÃ©e !',
+      text: 'Votre annonce a Ã©tÃ© supprimÃ©e.',
+      icon: 'success'
+    })
 
     emit('deleted', props.publication.id)
   } catch (error) {
     console.error('Erreur suppression annonce :', error)
 
-    window.alert(
-      'Une erreur est survenue lors de la suppression.'
-    )
+    await Swal.fire({
+      title: 'Erreur',
+      text: 'Une erreur est survenue lors de la suppression.',
+      icon: 'error'
+    })
   } finally {
     deleting.value = false
   }
@@ -2745,6 +2779,7 @@ C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
           <PublicationAdCard
             v-else
             :publication="item.data"
+            @edit="goToEditPublication"
             @deleted="handlePublicationDeleted"
           />
         </template>
@@ -2764,6 +2799,7 @@ C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
@@ -2783,6 +2819,7 @@ import {
 import type { Animal, Publication } from '../types'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 const animals = ref<Animal[]>([])
 const publications = ref<Publication[]>([])
@@ -2792,7 +2829,7 @@ const error = ref('')
 
 /*
  * Les animaux "officiels" de la base et les annonces publiÃ©es par les
- * utilisateurs sont fusionnÃ©s dans une seule liste affichÃ©e dans la
+ * utilisateurs sont fusionnÃ©es dans une seule liste affichÃ©e dans la
  * mÃªme grille : les annonces les plus rÃ©centes en premier, suivies
  * des animaux existants.
  */
@@ -2847,6 +2884,24 @@ async function loadPublications() {
   }
 }
 
+/*
+ * "Modifier" depuis la page Animaux : on renvoie l'utilisateur vers le
+ * dashboard, qui lira le paramÃ¨tre "edit" dans l'URL au montage et
+ * ouvrira automatiquement le formulaire prÃ©-rempli avec cette annonce.
+ */
+function goToEditPublication(publication: Publication) {
+  router.push({
+    path: '/dashboard',
+    query: { edit: publication.id }
+  })
+}
+
+/*
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
+ */
 function handlePublicationDeleted(id: number) {
   publications.value = publications.value.filter(
     (publication) => publication.id !== id
@@ -3079,7 +3134,7 @@ C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
               :key="publication.id"
               :publication="publication"
               @edit="editPublication"
-              @delete="removePublication"
+              @deleted="removePublicationFromList"
             />
           </div>
 
@@ -3109,8 +3164,7 @@ import PublicationForm from '../components/dashboard/PublicationForm.vue'
 
 import { useAuthStore } from '../stores/auth'
 import {
-  fetchPublications,
-  deletePublication as deletePublicationRequest
+  fetchPublications
 } from '../services/publicationService'
 
 import type { Publication } from '../types'
@@ -3190,37 +3244,16 @@ async function handleUpdated() {
   await loadDashboard()
 }
 
-async function removePublication(id: number) {
-  const confirmed = window.confirm(
-    'Voulez-vous vraiment supprimer cette publication ?'
+/*
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
+ */
+function removePublicationFromList(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
   )
-
-  if (!confirmed) {
-    return
-  }
-
-  try {
-    const response = await deletePublicationRequest(id)
-
-    if (!response.success) {
-      window.alert(
-        response.message ||
-        'Impossible de supprimer la publication.'
-      )
-
-      return
-    }
-
-    publications.value = publications.value.filter(
-      (publication) => publication.id !== id
-    )
-  } catch (error) {
-    console.error('Erreur suppression :', error)
-
-    window.alert(
-      'Une erreur est survenue lors de la suppression.'
-    )
-  }
 }
 
 onMounted(async () => {

@@ -66,6 +66,7 @@
           <PublicationAdCard
             v-else
             :publication="item.data"
+            @edit="goToEditPublication"
             @deleted="handlePublicationDeleted"
           />
         </template>
@@ -85,6 +86,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
@@ -104,6 +106,7 @@ import {
 import type { Animal, Publication } from '../types'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 const animals = ref<Animal[]>([])
 const publications = ref<Publication[]>([])
@@ -113,7 +116,7 @@ const error = ref('')
 
 /*
  * Les animaux "officiels" de la base et les annonces publiées par les
- * utilisateurs sont fusionnés dans une seule liste affichée dans la
+ * utilisateurs sont fusionnées dans une seule liste affichée dans la
  * même grille : les annonces les plus récentes en premier, suivies
  * des animaux existants.
  */
@@ -168,6 +171,24 @@ async function loadPublications() {
   }
 }
 
+/*
+ * "Modifier" depuis la page Animaux : on renvoie l'utilisateur vers le
+ * dashboard, qui lira le paramètre "edit" dans l'URL au montage et
+ * ouvrira automatiquement le formulaire pré-rempli avec cette annonce.
+ */
+function goToEditPublication(publication: Publication) {
+  router.push({
+    path: '/dashboard',
+    query: { edit: publication.id }
+  })
+}
+
+/*
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
+ */
 function handlePublicationDeleted(id: number) {
   publications.value = publications.value.filter(
     (publication) => publication.id !== id

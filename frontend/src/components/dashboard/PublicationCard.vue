@@ -57,49 +57,24 @@
         v-if="isOwner"
         class="flex items-center justify-end gap-3 pt-2"
       >
-        <!-- Etat normal : boutons Supprimer / Modifier -->
-        <template v-if="!confirmingDelete">
-          <button
-            type="button"
-            class="flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-            @click="confirmingDelete = true"
-          >
-            <Trash2 class="h-4 w-4" />
-            Supprimer
-          </button>
+        <button
+          type="button"
+          :disabled="deleting"
+          class="flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="handleDelete"
+        >
+          <Trash2 class="h-4 w-4" />
+          Supprimer
+        </button>
 
-          <button
-            type="button"
-            class="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            @click="handleEdit"
-          >
-            <Pencil class="h-4 w-4" />
-            Modifier
-          </button>
-        </template>
-
-        <!-- Etat de confirmation : remplace les boutons, pas de popup navigateur -->
-        <template v-else>
-          <span class="text-sm text-slate-600">
-            Supprimer cette annonce ?
-          </span>
-
-          <button
-            type="button"
-            class="rounded-full border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-            @click="confirmingDelete = false"
-          >
-            Annuler
-          </button>
-
-          <button
-            type="button"
-            class="rounded-full bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-            @click="handleDelete"
-          >
-            Confirmer
-          </button>
-        </template>
+        <button
+          type="button"
+          class="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          @click="handleEdit"
+        >
+          <Pencil class="h-4 w-4" />
+          Modifier
+        </button>
       </div>
     </div>
   </article>
@@ -108,22 +83,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Pencil, Trash2 } from 'lucide-vue-next'
+import Swal from 'sweetalert2'
 
 import { useAuthStore } from '../../stores/auth'
 import { getImageUrl } from '../../services/imageService'
+import { deletePublication } from '../../services/publicationService'
 
 import type { Publication } from '../../types'
 
 /*
- * Ce composant ne fait pas lui-meme l'appel API : il se contente
- * d'emettre "edit" et "delete", le parent (vue Dashboard ou vue
- * Animaux) se charge de l'appel API et de la mise a jour de la liste.
- *
- * La confirmation de suppression est geree ici via un etat interne
- * (confirmingDelete), et non via window.confirm() : cette fenetre
- * native peut etre bloquee silencieusement par le navigateur (case
- * "ne plus afficher de boite de dialogue" cochee par erreur), ce qui
- * rendait la suppression impossible sans message d'erreur visible.
+ * La confirmation et le retour (succes/erreur) de suppression sont geres
+ * ici avec SweetAlert2 (https://sweetalert2.github.io/), a la place de
+ * window.confirm() qui pouvait etre bloque silencieusement par le
+ * navigateur. L'appel API est fait directement ici ; une fois la
+ * suppression confirmee cote serveur, on emet "deleted" pour que le
+ * parent (Dashboard ou Animaux) retire la carte de sa liste.
  */
 
 const props = defineProps<{
@@ -132,12 +106,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   edit: [publication: Publication]
-  delete: [id: number]
+  deleted: [id: number]
 }>()
 
 const auth = useAuthStore()
 
-const confirmingDelete = ref(false)
+const deleting = ref(false)
 
 const isOwner = computed(() => {
   return (
@@ -151,8 +125,56 @@ function handleEdit() {
   emit('edit', props.publication)
 }
 
-function handleDelete() {
-  confirmingDelete.value = false
-  emit('delete', props.publication.id)
+async function handleDelete() {
+  const result = await Swal.fire({
+    title: 'Êtes-vous sûr ?',
+    text: 'Cette annonce sera supprimée définitivement.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Oui, supprimer',
+    cancelButtonText: 'Annuler'
+  })
+
+  if (!result.isConfirmed) {
+    return
+  }
+
+  deleting.value = true
+
+  try {
+    const response = await deletePublication(props.publication.id)
+
+    if (!response.success) {
+      await Swal.fire({
+        title: 'Erreur',
+        text:
+          response.message ||
+          'Impossible de supprimer cette annonce.',
+        icon: 'error'
+      })
+
+      return
+    }
+
+    await Swal.fire({
+      title: 'Supprimée !',
+      text: 'Votre annonce a été supprimée.',
+      icon: 'success'
+    })
+
+    emit('deleted', props.publication.id)
+  } catch (error) {
+    console.error('Erreur suppression annonce :', error)
+
+    await Swal.fire({
+      title: 'Erreur',
+      text: 'Une erreur est survenue lors de la suppression.',
+      icon: 'error'
+    })
+  } finally {
+    deleting.value = false
+  }
 }
 </script>
