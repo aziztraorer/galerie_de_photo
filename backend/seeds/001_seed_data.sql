@@ -1,0 +1,24 @@
+INSERT INTO categories (name, description, icon) VALUES
+('Mammals', 'Warm-blooded animals with hair or fur that nourish their young with milk.', 'paw-print'),
+('Birds', 'Animals with feathers, beaks and the ability to fly or glide.', 'bird'),
+('Reptiles', 'Cold-blooded vertebrates such as snakes, turtles and crocodiles.', 'reptile'),
+('Amphibians', 'Animals that often begin life in water and later live on land.', 'frog'),
+('Fish', 'Aquatic vertebrates adapted to life in water.', 'fish'),
+('Insects', 'Small invertebrates with segmented bodies and six legs.', 'bug'),
+('Arachnids', 'Eight-legged arthropods including spiders and scorpions.', 'spider');
+
+INSERT INTO animals (category_id, name, scientific_name, short_description, description, diet, habitat, characteristics, lifespan, image_url) VALUES
+(1, 'Lion', 'Panthera leo', 'A social big cat known for its powerful presence and pride structure.', 'Lions are apex predators that live in social groups called prides. They coordinate hunting and protect territory together.', 'Meat and large herbivore prey', 'Savannas and grasslands of Africa', 'Powerful mane, cooperative behavior, strong social bonds, excellent night vision', '10-14 years in the wild'),
+(1, 'Elephant', 'Loxodonta africana', 'A highly intelligent mammal with remarkable memory and complex social behavior.', 'Elephants are the largest land animals and play a crucial role in shaping their ecosystems by moving through forests and grasslands.', 'Plants, leaves, fruit and bark', 'Forests, savannas and wetlands', 'Large ears, strong trunk, advanced communication, long lifespan', '60-70 years'),
+(2, 'Eagle', 'Aquila chrysaetos', 'A powerful bird of prey admired for its sharp vision and flying ability.', 'Eagles are known for their excellent eyesight and strong talons, which help them hunt efficiently across vast territories.', 'Small mammals, fish and birds', 'Mountains, cliffs and open country', 'Large wingspan, keen eyesight, strong talons, aerial hunting', '20-30 years'),
+(2, 'Pigeon', 'Columba livia', 'A familiar bird known for its calm nature and strong homing instinct.', 'Pigeons are highly adaptable birds that can live close to humans while also surviving in natural habitats.', 'Seeds, grains and fruits', 'Cities, cliffs and farmlands', 'Compact body, strong navigation instinct, social flocking behavior', '3-5 years'),
+(3, 'Turtle', 'Chelonia mydas', 'A long-lived reptile that uses its shell as protection and support.', 'Turtles are known for their durable shells and slow, steady movement. Some species spend most of their lives in the ocean while others live on land.', 'Plants, jellyfish and sea grasses', 'Oceans, rivers and terrestrial habitats', 'Hard shell, slow metabolism, long lifespan, strong swimming ability', '50-100 years'),
+(3, 'Crocodile', 'Crocodylus porosus', 'A powerful reptile that is both predator and opportunistic survivor.', 'Crocodiles are ancient reptiles with strong jaws and excellent ambush hunting abilities in rivers and wetlands.', 'Fish, mammals and birds', 'Rivers, swamps and coastal regions', 'Armored skin, powerful bite, ambush hunting, strong swimming', '70-100 years'),
+(4, 'Frog', 'Lithobates catesbeianus', 'An amphibian with a strong jump, moist skin and a life cycle tied to water.', 'Frogs are amphibians that begin life as tadpoles and later develop into adults capable of breathing through lungs and skin.', 'Insects and other small animals', 'Ponds, wetlands and forests', 'Moist skin, strong legs, vocal calls, metamorphosis', '5-15 years'),
+(5, 'Dolphin', 'Tursiops truncatus', 'A highly intelligent marine mammal known for communication and cooperation.', 'Dolphins are social marine mammals that use clicks and whistles to communicate and coordinate their behavior.', 'Fish and squid', 'Oceans and coastal seas', 'Streamlined body, echolocation, high intelligence, social pods', '20-50 years'),
+(6, 'Butterfly', 'Danaus plexippus', 'A colorful insect known for its migration and metamorphosis.', 'Butterflies undergo a dramatic transformation from caterpillar to winged adult and are important pollinators in many habitats.', 'Nectar and plant juices', 'Meadows, forests and gardens', 'Bright wings, metamorphosis, pollination, migration', '2-6 weeks'),
+(7, 'Penguin', 'Spheniscus demersus', 'A flightless bird adapted to cold waters and strong swimming.', 'Penguins are birds that have evolved to be exceptional swimmers and spend much of their lives in marine environments.', 'Fish and squid', 'Antarctic and subantarctic coastal waters', 'Streamlined body, flipper-like wings, dense feathers, social breeding colonies', '15-20 years');
+
+INSERT INTO users (name, email, password, role) VALUES
+('Admin User', 'admin@example.com', '$2y$10$6M2MKWqL8H3X6qzD9QvGX.4GQ3IynA/0OlfR6NxIC8rZzqI9EOm8y', 'admin'),
+('Guest User', 'user@example.com', '$2y$10$6M2MKWqL8H3X6qzD9QvGX.4GQ3IynA/0OlfR6NxIC8rZzqI9EOm8y', 'user');

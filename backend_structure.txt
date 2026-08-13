@@ -1,0 +1,2958 @@
+﻿
+========================================
+C:\xampp\htdocs\cours\backend\src\Auth\Session.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Auth;
+
+class Session
+{
+    public static function start(): void
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => '/',
+                'domain' => '',
+                'secure' => false,
+                'httponly' => true,
+                'samesite' => 'lax',
+            ]);
+
+            session_start();
+        }
+    }
+
+    public static function set(string $key, mixed $value): void
+    {
+        self::start();
+
+        $_SESSION[$key] = $value;
+    }
+
+    public static function get(string $key): mixed
+    {
+        self::start();
+
+        return $_SESSION[$key] ?? null;
+    }
+
+    public static function forget(string $key): void
+    {
+        self::start();
+
+        unset($_SESSION[$key]);
+    }
+
+    public static function destroy(): void
+    {
+        self::start();
+
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                (bool) $params['secure'],
+                (bool) $params['httponly']
+            );
+        }
+
+        session_destroy();
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\AnimalController.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Exceptions\HttpException;
+use App\Services\AnimalService;
+
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class AnimalController
+{
+    public function __construct(
+        private AnimalService $animalService
+    ) {
+    }
+
+    public function list(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+
+            $animals = $this->animalService->list();
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'animals' => $animals
+                    ]
+                ]
+            );
+
+        } catch (\Throwable $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                500
+            );
+        }
+    }
+
+    public function show(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+        try {
+
+            $animal = $this->animalService->show(
+                (int) $args['id']
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'animal' => $animal
+                    ]
+                ]
+            );
+
+        } catch (HttpException $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    private function json(
+        Response $response,
+        array $data,
+        int $status = 200
+    ): Response {
+
+        $response->getBody()->write(
+            json_encode(
+                $data,
+                JSON_UNESCAPED_UNICODE |
+                JSON_UNESCAPED_SLASHES
+            )
+        );
+
+        return $response
+            ->withStatus($status)
+            ->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\AuthController.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Auth\Session;
+use App\Exceptions\HttpException;
+use App\Services\AuthService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class AuthController
+{
+    public function __construct(
+        private AuthService $authService
+    ) {
+    }
+
+    public function register(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            $payload = $request->getParsedBody();
+
+            $user = $this->authService->register(
+                is_array($payload) ? $payload : []
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'user' => $user
+                    ]
+                ],
+                201
+            );
+
+        } catch (HttpException $e) {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function login(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            $payload = $request->getParsedBody();
+
+            $user = $this->authService->login(
+                is_array($payload) ? $payload : []
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'user' => $user
+                    ]
+                ]
+            );
+
+        } catch (HttpException $e) {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function logout(
+        Request $request,
+        Response $response
+    ): Response {
+        $this->authService->logout();
+
+        return $this->json(
+            $response,
+            [
+                'success' => true,
+                'message' => 'Logged out.'
+            ]
+        );
+    }
+
+    public function me(
+        Request $request,
+        Response $response
+    ): Response {
+        $user = $this->authService->currentUser();
+
+        if ($user === null) {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => 'Unauthenticated.'
+                ],
+                401
+            );
+        }
+
+        return $this->json(
+            $response,
+            [
+                'success' => true,
+                'data' => [
+                    'user' => $user
+                ]
+            ]
+        );
+    }
+
+    public function changePassword(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            Session::start();
+
+            $userId = Session::get('user_id');
+
+            if (!$userId) {
+                throw new HttpException(
+                    'Utilisateur non connectÃ©.',
+                    401
+                );
+            }
+
+            $data = $request->getParsedBody();
+
+            if (!is_array($data)) {
+                $data = [];
+            }
+
+            $currentPassword = (string) (
+                $data['current_password'] ?? ''
+            );
+
+            $newPassword = (string) (
+                $data['new_password'] ?? ''
+            );
+
+            $confirmPassword = (string) (
+                $data['confirm_password'] ?? ''
+            );
+
+            $this->authService->changePassword(
+                (int) $userId,
+                $currentPassword,
+                $newPassword,
+                $confirmPassword
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'message' => 'Mot de passe modifiÃ© avec succÃ¨s.'
+                ]
+            );
+
+        } catch (HttpException $e) {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    private function json(
+        Response $response,
+        array $data,
+        int $status = 200
+    ): Response {
+        $response->getBody()->write(
+            json_encode(
+                $data,
+                JSON_UNESCAPED_UNICODE |
+                JSON_UNESCAPED_SLASHES
+            )
+        );
+
+        return $response
+            ->withStatus($status)
+            ->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\CategoryController.php
+========================================
+<?php
+namespace App\Controllers;
+
+use App\Services\CategoryService;
+use App\Exceptions\HttpException;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class CategoryController
+{
+    public function __construct(private CategoryService $categoryService)
+    {
+    }
+
+    public function list(Request $request, Response $response): Response
+    {
+        $categories = $this->categoryService->listCategories();
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'data' => $categories
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function show(Request $request, Response $response, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        if ($id <= 0) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Invalid category id.'
+            ]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $category = $this->categoryService->getCategoryById($id);
+        if (!$category) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => 'Category not found.'
+            ]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'data' => $category
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function animals(Request $request, Response $response, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $animals = $this->categoryService->getCategoryAnimals($id);
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'data' => $animals
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\FavoriteController.php
+========================================
+<?php
+namespace App\Controllers;
+
+use App\Services\FavoriteService;
+use App\Exceptions\HttpException;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class FavoriteController
+{
+    public function __construct(private FavoriteService $favoriteService)
+    {
+    }
+
+    public function list(Request $request, Response $response): Response
+    {
+        $user = $request->getAttribute('user');
+        $favorites = $this->favoriteService->listForUser((int) $user['id']);
+
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'data' => $favorites,
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function add(Request $request, Response $response): Response
+    {
+        try {
+            $user = $request->getAttribute('user');
+            $payload = $request->getParsedBody() ?? [];
+            $animalId = (int) ($payload['animal_id'] ?? 0);
+            $favorites = $this->favoriteService->toggle((int) $user['id'], $animalId);
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'data' => $favorites,
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (HttpException $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]));
+            return $response->withStatus($e->getStatusCode())->withHeader('Content-Type', 'application/json');
+        }
+    }
+
+    public function remove(Request $request, Response $response, array $args): Response
+    {
+        try {
+            $user = $request->getAttribute('user');
+            $animalId = (int) ($args['animal_id'] ?? 0);
+            $favorites = $this->favoriteService->remove((int) $user['id'], $animalId);
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'data' => $favorites,
+            ]));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (HttpException $e) {
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]));
+            return $response->withStatus($e->getStatusCode())->withHeader('Content-Type', 'application/json');
+        }
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\ImageController.php
+========================================
+<?php
+
+namespace App\Controllers;
+
+use App\Services\ImageService;
+use App\Exceptions\HttpException;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class ImageController
+{
+    public function __construct(
+        private ImageService $imageService
+    ) {
+    }
+
+    public function list(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            $images =
+                $this->imageService->list();
+
+            $response->getBody()->write(
+                json_encode([
+                    'success' => true,
+                    'data' => [
+                        'images' => $images,
+                    ],
+                ])
+            );
+
+            return $response->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+        } catch (HttpException $e) {
+            return $this->error(
+                $response,
+                $e->getMessage(),
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function create(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            $data =
+                $request->getParsedBody() ?? [];
+
+            $uploadedFiles =
+                $request->getUploadedFiles();
+
+            $file =
+                $uploadedFiles['image'] ?? null;
+
+            $title =
+                $data['title'] ?? '';
+
+            $image =
+                $this->imageService->create(
+                    $title,
+                    $file
+                );
+
+            $response->getBody()->write(
+                json_encode([
+                    'success' => true,
+                    'message' =>
+                        'Image added successfully.',
+                    'data' => [
+                        'image' => $image,
+                    ],
+                ])
+            );
+
+            return $response
+                ->withStatus(201)
+                ->withHeader(
+                    'Content-Type',
+                    'application/json'
+                );
+        } catch (HttpException $e) {
+            return $this->error(
+                $response,
+                $e->getMessage(),
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function update(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+        try {
+            $id =
+                (int) ($args['id'] ?? 0);
+
+            $data =
+                $request->getParsedBody() ?? [];
+
+            $uploadedFiles =
+                $request->getUploadedFiles();
+
+            $file =
+                $uploadedFiles['image'] ?? null;
+
+            $title =
+                $data['title'] ?? '';
+
+            $image =
+                $this->imageService->update(
+                    $id,
+                    $title,
+                    $file
+                );
+
+            $response->getBody()->write(
+                json_encode([
+                    'success' => true,
+                    'message' =>
+                        'Image updated successfully.',
+                    'data' => [
+                        'image' => $image,
+                    ],
+                ])
+            );
+
+            return $response->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+        } catch (HttpException $e) {
+            return $this->error(
+                $response,
+                $e->getMessage(),
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function delete(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+        try {
+            $id =
+                (int) ($args['id'] ?? 0);
+
+            $this->imageService->delete($id);
+
+            $response->getBody()->write(
+                json_encode([
+                    'success' => true,
+                    'message' =>
+                        'Image deleted successfully.',
+                ])
+            );
+
+            return $response->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+        } catch (HttpException $e) {
+            return $this->error(
+                $response,
+                $e->getMessage(),
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    private function error(
+        Response $response,
+        string $message,
+        int $status
+    ): Response {
+        $response->getBody()->write(
+            json_encode([
+                'success' => false,
+                'message' => $message,
+            ])
+        );
+
+        return $response
+            ->withStatus($status)
+            ->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Controllers\PublicationController.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Exceptions\HttpException;
+use App\Services\PublicationService;
+use App\Auth\Session;
+
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class PublicationController
+{
+    public function __construct(
+        private PublicationService $publicationService
+    ) {
+    }
+
+    public function list(
+        Request $request,
+        Response $response
+    ): Response {
+
+        try {
+
+            $publications =
+                $this->publicationService->list();
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'publications' => $publications
+                    ]
+                ]
+            );
+
+        } catch (\Throwable $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                500
+            );
+        }
+    }
+
+    public function show(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+
+        try {
+
+            $publication =
+                $this->publicationService->show(
+                    (int) $args['id']
+                );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'data' => [
+                        'publication' => $publication
+                    ]
+                ]
+            );
+
+        } catch (HttpException $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function create(
+        Request $request,
+        Response $response
+    ): Response {
+
+        try {
+
+            Session::start();
+
+            $userId = Session::get('user_id');
+
+            if (!$userId) {
+                throw new HttpException(
+                    'Utilisateur non connectÃ©.',
+                    401
+                );
+            }
+
+            $data = $request->getParsedBody();
+
+            if (!is_array($data)) {
+                $data = [];
+            }
+
+            $files = $request->getUploadedFiles();
+
+            $publication =
+                $this->publicationService->create(
+                    (int) $userId,
+                    $data,
+                    $files
+                );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'message' => 'Publication crÃ©Ã©e avec succÃ¨s.',
+                    'data' => [
+                        'publication' => $publication
+                    ]
+                ],
+                201
+            );
+
+        } catch (HttpException $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function update(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+
+        try {
+
+            Session::start();
+
+            $userId = Session::get('user_id');
+
+            if (!$userId) {
+                throw new HttpException(
+                    'Utilisateur non connectÃ©.',
+                    401
+                );
+            }
+
+            $data = $request->getParsedBody();
+
+            if (!is_array($data)) {
+                $data = [];
+            }
+
+            $files = $request->getUploadedFiles();
+
+            $publication =
+                $this->publicationService->update(
+                    (int) $userId,
+                    (int) $args['id'],
+                    $data,
+                    $files
+                );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'message' => 'Publication modifiÃ©e avec succÃ¨s.',
+                    'data' => [
+                        'publication' => $publication
+                    ]
+                ]
+            );
+
+        } catch (HttpException $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function delete(
+        Request $request,
+        Response $response,
+        array $args
+    ): Response {
+
+        try {
+
+            Session::start();
+
+            $userId = Session::get('user_id');
+
+            if (!$userId) {
+                throw new HttpException(
+                    'Utilisateur non connectÃ©.',
+                    401
+                );
+            }
+
+            $this->publicationService->delete(
+                (int) $userId,
+                (int) $args['id']
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'message' => 'Publication supprimÃ©e.'
+                ]
+            );
+
+        } catch (HttpException $e) {
+
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    private function json(
+        Response $response,
+        array $data,
+        int $status = 200
+    ): Response {
+
+        $response->getBody()->write(
+            json_encode(
+                $data,
+                JSON_UNESCAPED_UNICODE |
+                JSON_UNESCAPED_SLASHES
+            )
+        );
+
+        return $response
+            ->withStatus($status)
+            ->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Database\Database.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Database;
+
+use PDO;
+use PDOException;
+
+class Database
+{
+    private static ?self $instance = null;
+
+    private PDO $pdo;
+
+    private function __construct()
+    {
+        $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
+        $port = $_ENV['DB_PORT'] ?? '3306';
+        $db = $_ENV['DB_DATABASE'] ?? 'azizdev_animals';
+        $user = $_ENV['DB_USERNAME'] ?? 'root';
+        $pass = $_ENV['DB_PASSWORD'] ?? '';
+
+        $dsn =
+            "mysql:host={$host};" .
+            "port={$port};" .
+            "dbname={$db};" .
+            "charset=utf8mb4";
+
+        try {
+            $this->pdo = new PDO(
+                $dsn,
+                $user,
+                $pass,
+                [
+                    PDO::ATTR_ERRMODE =>
+                        PDO::ERRMODE_EXCEPTION,
+
+                    PDO::ATTR_DEFAULT_FETCH_MODE =>
+                        PDO::FETCH_ASSOC,
+
+                    PDO::ATTR_EMULATE_PREPARES =>
+                        false,
+                ]
+            );
+        } catch (PDOException $e) {
+            throw new \RuntimeException(
+                'Database connection failed.'
+            );
+        }
+    }
+
+    public static function getInstance(): self
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+
+        return self::$instance;
+    }
+
+    public function getPdo(): PDO
+    {
+        return $this->pdo;
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Exceptions\HttpException.php
+========================================
+<?php
+namespace App\Exceptions;
+
+use Exception;
+
+class HttpException extends Exception
+{
+    private int $statusCode;
+
+    public function __construct(string $message, int $statusCode = 500)
+    {
+        parent::__construct($message, $statusCode);
+        $this->statusCode = $statusCode;
+    }
+
+    public function getStatusCode(): int
+    {
+        return $this->statusCode;
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Middleware\AdminMiddleware.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Middleware;
+
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Server\RequestHandlerInterface as Handler;
+use Slim\Psr7\Response as SlimResponse;
+
+class AdminMiddleware
+{
+    public function __invoke(
+        Request $request,
+        Handler $handler
+    ): Response {
+        $user = $request->getAttribute('user');
+
+        if (
+            !$user ||
+            ($user['role'] ?? 'user') !== 'admin'
+        ) {
+            $response = new SlimResponse();
+
+            $response->getBody()->write(
+                json_encode([
+                    'success' => false,
+                    'message' => 'Forbidden.'
+                ])
+            );
+
+            return $response
+                ->withStatus(403)
+                ->withHeader(
+                    'Content-Type',
+                    'application/json'
+                );
+        }
+
+        return $handler->handle($request);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Middleware\AuthMiddleware.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Middleware;
+
+use App\Auth\Session;
+use App\Repositories\UserRepository;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Server\RequestHandlerInterface as Handler;
+use Slim\Psr7\Response as SlimResponse;
+
+class AuthMiddleware
+{
+    public function __invoke(
+        Request $request,
+        Handler $handler
+    ): Response {
+        Session::start();
+
+        $userId = Session::get('user_id');
+
+        if (!$userId) {
+            return $this->unauthorized();
+        }
+
+        $userRepository = new UserRepository();
+
+        $user = $userRepository->findById((int) $userId);
+
+        if (!$user) {
+            Session::destroy();
+
+            return $this->unauthorized();
+        }
+
+        return $handler->handle(
+            $request->withAttribute('user', $user)
+        );
+    }
+
+    private function unauthorized(): Response
+    {
+        $response = new SlimResponse();
+
+        $response->getBody()->write(
+            json_encode([
+                'success' => false,
+                'message' => 'Authentication required.'
+            ])
+        );
+
+        return $response
+            ->withStatus(401)
+            ->withHeader(
+                'Content-Type',
+                'application/json'
+            );
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\AnimalRepository.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class PublicationRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo = $pdo ?? Database::getInstance()->getPdo();
+    }
+
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->query(
+            'SELECT
+                p.*,
+                u.name AS user_name,
+                u.email AS user_email
+             FROM publications p
+             INNER JOIN users u
+                ON u.id = p.user_id
+             ORDER BY p.id DESC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT
+                p.*,
+                u.name AS user_name,
+                u.email AS user_email
+             FROM publications p
+             INNER JOIN users u
+                ON u.id = p.user_id
+             WHERE p.id = :id
+             LIMIT 1'
+        );
+
+        $stmt->execute([
+            'id' => $id
+        ]);
+
+        $publication = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $publication ?: null;
+    }
+
+    public function create(
+        int $userId,
+        string $title,
+        string $description,
+        ?string $image
+    ): array {
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO publications
+                (user_id, title, description, image_url)
+             VALUES
+                (:user_id, :title, :description, :image_url)'
+        );
+
+        $stmt->execute([
+            'user_id' => $userId,
+            'title' => $title,
+            'description' => $description,
+            'image_url' => $image
+        ]);
+
+        return $this->findById(
+            (int) $this->pdo->lastInsertId()
+        );
+    }
+
+    public function update(
+        int $id,
+        string $title,
+        string $description,
+        ?string $image = null
+    ): bool {
+
+        if ($image !== null) {
+
+            $stmt = $this->pdo->prepare(
+                'UPDATE publications
+                 SET
+                    title = :title,
+                    description = :description,
+                    image_url = :image_url
+                 WHERE id = :id'
+            );
+
+            return $stmt->execute([
+                'title' => $title,
+                'description' => $description,
+                'image_url' => $image,
+                'id' => $id
+            ]);
+        }
+
+        $stmt = $this->pdo->prepare(
+            'UPDATE publications
+             SET
+                title = :title,
+                description = :description
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'title' => $title,
+            'description' => $description,
+            'id' => $id
+        ]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM publications
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'id' => $id
+        ]);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\CategoryRepository.php
+========================================
+<?php
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class CategoryRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo = $pdo ?? Database::getInstance()->getPdo();
+    }
+
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->query('SELECT * FROM categories ORDER BY name ASC');
+        return $stmt->fetchAll();
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM categories WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    public function findAnimalsByCategoryId(int $id): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM animals WHERE category_id = :id ORDER BY name ASC');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetchAll();
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\FavoriteRepository.php
+========================================
+<?php
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class FavoriteRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo = $pdo ?? Database::getInstance()->getPdo();
+    }
+
+    public function listByUserId(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.*, c.id AS category_id, c.name AS category_name, c.description AS category_description, c.icon AS category_icon
+             FROM favorites f
+             JOIN animals a ON a.id = f.animal_id
+             LEFT JOIN categories c ON c.id = a.category_id
+             WHERE f.user_id = :user_id
+             ORDER BY f.created_at DESC'
+        );
+        $stmt->execute(['user_id' => $userId]);
+        $rows = $stmt->fetchAll();
+
+        return array_map(function (array $row): array {
+            return [
+                'id' => (int) $row['id'],
+                'name' => $row['name'],
+                'scientific_name' => $row['scientific_name'],
+                'short_description' => $row['short_description'],
+                'description' => $row['description'],
+                'diet' => $row['diet'],
+                'habitat' => $row['habitat'],
+                'characteristics' => $row['characteristics'],
+                'lifespan' => $row['lifespan'],
+                'image_url' => $row['image_url'],
+                'category_id' => (int) $row['category_id'],
+                'category' => [
+                    'id' => (int) $row['category_id'],
+                    'name' => $row['category_name'],
+                    'description' => $row['category_description'],
+                    'icon' => $row['category_icon'],
+                ],
+                'created_at' => $row['created_at'],
+                'is_favorite' => true,
+            ];
+        }, $rows);
+    }
+
+    public function exists(int $userId, int $animalId): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM favorites WHERE user_id = :user_id AND animal_id = :animal_id LIMIT 1');
+        $stmt->execute(['user_id' => $userId, 'animal_id' => $animalId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function add(int $userId, int $animalId): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO favorites (user_id, animal_id) VALUES (:user_id, :animal_id)');
+        $stmt->execute(['user_id' => $userId, 'animal_id' => $animalId]);
+    }
+
+    public function remove(int $userId, int $animalId): void
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM favorites WHERE user_id = :user_id AND animal_id = :animal_id');
+        $stmt->execute(['user_id' => $userId, 'animal_id' => $animalId]);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\ImageRepository.php
+========================================
+<?php
+
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class ImageRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo =
+            $pdo ??
+            Database::getInstance()->getPdo();
+    }
+
+    public function listByUser(
+        int $userId
+    ): array {
+        $stmt = $this->pdo->prepare(
+            'SELECT
+                id,
+                user_id,
+                title,
+                image_url,
+                created_at,
+                updated_at
+             FROM images
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC'
+        );
+
+        $stmt->execute([
+            'user_id' => $userId,
+        ]);
+
+        return $stmt->fetchAll(
+            PDO::FETCH_ASSOC
+        );
+    }
+
+    public function findById(
+        int $id
+    ): ?array {
+        $stmt = $this->pdo->prepare(
+            'SELECT
+                id,
+                user_id,
+                title,
+                image_url,
+                created_at,
+                updated_at
+             FROM images
+             WHERE id = :id'
+        );
+
+        $stmt->execute([
+            'id' => $id,
+        ]);
+
+        $image =
+            $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $image ?: null;
+    }
+
+    public function create(
+        int $userId,
+        string $title,
+        string $imageUrl
+    ): array {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO images
+                (user_id, title, image_url)
+             VALUES
+                (:user_id, :title, :image_url)'
+        );
+
+        $stmt->execute([
+            'user_id' => $userId,
+            'title' => $title,
+            'image_url' => $imageUrl,
+        ]);
+
+        return $this->findById(
+            (int) $this->pdo->lastInsertId()
+        );
+    }
+
+    public function update(
+        int $id,
+        int $userId,
+        string $title,
+        ?string $imageUrl = null
+    ): ?array {
+        if ($imageUrl !== null) {
+            $stmt = $this->pdo->prepare(
+                'UPDATE images
+                 SET
+                    title = :title,
+                    image_url = :image_url
+                 WHERE
+                    id = :id
+                    AND user_id = :user_id'
+            );
+
+            $stmt->execute([
+                'title' => $title,
+                'image_url' => $imageUrl,
+                'id' => $id,
+                'user_id' => $userId,
+            ]);
+        } else {
+            $stmt = $this->pdo->prepare(
+                'UPDATE images
+                 SET title = :title
+                 WHERE
+                    id = :id
+                    AND user_id = :user_id'
+            );
+
+            $stmt->execute([
+                'title' => $title,
+                'id' => $id,
+                'user_id' => $userId,
+            ]);
+        }
+
+        return $this->findById($id);
+    }
+
+    public function delete(
+        int $id,
+        int $userId
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM images
+             WHERE
+                id = :id
+                AND user_id = :user_id'
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId,
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\PublicationRepository.php
+========================================
+<?php
+
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class PublicationRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo = $pdo ?? Database::getInstance()->getPdo();
+    }
+
+    public function create(
+        int $userId,
+        string $title,
+        string $description,
+        ?int $categoryId
+    ): array {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO publications
+            (user_id, title, description, category_id)
+            VALUES
+            (:user_id, :title, :description, :category_id)'
+        );
+
+        $stmt->execute([
+            'user_id' => $userId,
+            'title' => $title,
+            'description' => $description,
+            'category_id' => $categoryId
+        ]);
+
+        return $this->findById(
+            (int) $this->pdo->lastInsertId()
+        );
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT *
+             FROM publications
+             WHERE id = :id'
+        );
+
+        $stmt->execute([
+            'id' => $id
+        ]);
+
+        $publication = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$publication) {
+            return null;
+        }
+
+        $publication['images'] = $this->getImages($id);
+
+        return $publication;
+    }
+
+    public function listByUser(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT *
+             FROM publications
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC'
+        );
+
+        $stmt->execute([
+            'user_id' => $userId
+        ]);
+
+        $publications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($publications as &$publication) {
+            $publication['images'] = $this->getImages(
+                (int) $publication['id']
+            );
+        }
+
+        return $publications;
+    }
+
+    public function update(
+        int $id,
+        int $userId,
+        string $title,
+        string $description,
+        ?int $categoryId
+    ): ?array {
+        $stmt = $this->pdo->prepare(
+            'UPDATE publications
+             SET title = :title,
+                 description = :description,
+                 category_id = :category_id
+             WHERE id = :id
+             AND user_id = :user_id'
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId,
+            'title' => $title,
+            'description' => $description,
+            'category_id' => $categoryId
+        ]);
+
+        return $this->findById($id);
+    }
+
+    public function delete(
+        int $id,
+        int $userId
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM publications
+             WHERE id = :id
+             AND user_id = :user_id'
+        );
+
+        $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId
+        ]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function addImage(
+        int $publicationId,
+        string $imageUrl
+    ): array {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO publication_images
+             (publication_id, image_url)
+             VALUES
+             (:publication_id, :image_url)'
+        );
+
+        $stmt->execute([
+            'publication_id' => $publicationId,
+            'image_url' => $imageUrl
+        ]);
+
+        $id = (int) $this->pdo->lastInsertId();
+
+        $stmt = $this->pdo->prepare(
+            'SELECT *
+             FROM publication_images
+             WHERE id = :id'
+        );
+
+        $stmt->execute([
+            'id' => $id
+        ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function getImages(int $publicationId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT *
+             FROM publication_images
+             WHERE publication_id = :publication_id
+             ORDER BY created_at ASC'
+        );
+
+        $stmt->execute([
+            'publication_id' => $publicationId
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Repositories\UserRepository.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Repositories;
+
+use App\Database\Database;
+use PDO;
+
+class UserRepository
+{
+    private PDO $pdo;
+
+    public function __construct(?PDO $pdo = null)
+    {
+        $this->pdo =
+            $pdo ??
+            Database::getInstance()->getPdo();
+    }
+
+    public function findByEmail(
+        string $email
+    ): ?array {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM users
+             WHERE email = :email
+             LIMIT 1'
+        );
+
+        $stmt->execute([
+            'email' => $email
+        ]);
+
+        $row =
+            $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    public function create(
+        array $data
+    ): array {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO users
+            (name, email, password, role)
+            VALUES
+            (:name, :email, :password, :role)'
+        );
+
+        $stmt->execute([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+            'role' => $data['role'] ?? 'user'
+        ]);
+
+        $id =
+            (int) $this->pdo->lastInsertId();
+
+        $user = $this->findById($id);
+
+        if ($user === null) {
+            throw new \RuntimeException(
+                'User creation failed.'
+            );
+        }
+
+        return $user;
+    }
+
+    public function findById(
+        int $id
+    ): ?array {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM users
+             WHERE id = :id
+             LIMIT 1'
+        );
+
+        $stmt->execute([
+            'id' => $id
+        ]);
+
+        $user =
+            $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $user ?: null;
+    }
+
+    public function updatePassword(
+        int $userId,
+        string $password
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users
+             SET password = :password
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'password' => $password,
+            'id' => $userId
+        ]);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Routes\Routes.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+use App\Controllers\AnimalController;
+use App\Controllers\AuthController;
+use App\Controllers\CategoryController;
+use App\Controllers\FavoriteController;
+use App\Controllers\PublicationController;
+use App\Middleware\AdminMiddleware;
+use App\Middleware\AuthMiddleware;
+use Slim\App;
+use Slim\Routing\RouteCollectorProxy;
+
+return function (App $app): void {
+
+    $app->options('/{routes:.*}', function ($request, $response) {
+        return $response;
+    });
+
+    $app->group('/api', function (RouteCollectorProxy $api): void {
+
+        $api->get('/animals', [AnimalController::class, 'index']);
+        $api->get('/animals/{id:[0-9]+}', [AnimalController::class, 'show']);
+
+        $api->get('/categories', [CategoryController::class, 'index']);
+        $api->get('/categories/{id:[0-9]+}', [CategoryController::class, 'show']);
+
+        $api->post('/auth/register', [AuthController::class, 'register']);
+        $api->post('/auth/login', [AuthController::class, 'login']);
+        $api->get('/auth/me', [AuthController::class, 'me']);
+        $api->post('/auth/logout', [AuthController::class, 'logout']);
+
+        $api->group('', function (RouteCollectorProxy $protected): void {
+
+            $protected->post('/favorites/{animalId:[0-9]+}', [FavoriteController::class, 'store']);
+            $protected->delete('/favorites/{animalId:[0-9]+}', [FavoriteController::class, 'destroy']);
+            $protected->get('/favorites', [FavoriteController::class, 'index']);
+
+            $protected->get('/publications', [PublicationController::class, 'index']);
+            $protected->post('/publications', [PublicationController::class, 'store']);
+            $protected->put('/publications/{id:[0-9]+}', [PublicationController::class, 'update']);
+            $protected->delete('/publications/{id:[0-9]+}', [PublicationController::class, 'destroy']);
+
+        })->add(new AuthMiddleware());
+
+        $api->group('/admin', function (RouteCollectorProxy $admin): void {
+
+            $admin->post('/animals', [AnimalController::class, 'store']);
+            $admin->put('/animals/{id:[0-9]+}', [AnimalController::class, 'update']);
+            $admin->delete('/animals/{id:[0-9]+}', [AnimalController::class, 'destroy']);
+
+            $admin->post('/categories', [CategoryController::class, 'store']);
+            $admin->put('/categories/{id:[0-9]+}', [CategoryController::class, 'update']);
+            $admin->delete('/categories/{id:[0-9]+}', [CategoryController::class, 'destroy']);
+
+        })->add(new AdminMiddleware())->add(new AuthMiddleware());
+    });
+};
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\AnimalService.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Exceptions\HttpException;
+use App\Repositories\AnimalRepository;
+use App\Repositories\CategoryRepository;
+
+class AnimalService
+{
+    public function __construct(
+        private AnimalRepository $animalRepository,
+        private CategoryRepository $categoryRepository
+    ) {
+    }
+
+    public function list(): array
+    {
+        return $this->animalRepository->findAll();
+    }
+
+    public function show(int $id): array
+    {
+        $animal = $this->animalRepository->findById($id);
+
+        if ($animal === null) {
+            throw new HttpException(
+                'Animal introuvable.',
+                404
+            );
+        }
+
+        return $animal;
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\AuthService.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Auth\Session;
+use App\Exceptions\HttpException;
+use App\Repositories\UserRepository;
+
+class AuthService
+{
+    public function __construct(
+        private UserRepository $userRepository
+    ) {
+    }
+
+    public function register(array $data): array
+    {
+        $name = trim((string) ($data['name'] ?? ''));
+        $email = trim((string) ($data['email'] ?? ''));
+        $password = (string) ($data['password'] ?? '');
+
+        if ($name === '') {
+            throw new HttpException(
+                'Le nom est obligatoire.',
+                422
+            );
+        }
+
+        if (
+            $email === '' ||
+            !filter_var($email, FILTER_VALIDATE_EMAIL)
+        ) {
+            throw new HttpException(
+                'Adresse email invalide.',
+                422
+            );
+        }
+
+        if (strlen($password) < 8) {
+            throw new HttpException(
+                'Le mot de passe doit contenir au moins 8 caractÃ¨res.',
+                422
+            );
+        }
+
+        if ($this->userRepository->findByEmail($email) !== null) {
+            throw new HttpException(
+                'Cette adresse email est dÃ©jÃ  utilisÃ©e.',
+                409
+            );
+        }
+
+        $user = $this->userRepository->create([
+            'name' => $name,
+            'email' => $email,
+            'password' => password_hash(
+                $password,
+                PASSWORD_DEFAULT
+            ),
+            'role' => 'user'
+        ]);
+
+        return $this->sanitizeUser($user);
+    }
+
+    public function login(array $data): array
+    {
+        $email = trim((string) ($data['email'] ?? ''));
+        $password = (string) ($data['password'] ?? '');
+
+        if ($email === '' || $password === '') {
+            throw new HttpException(
+                'Email et mot de passe obligatoires.',
+                422
+            );
+        }
+
+        $user = $this->userRepository->findByEmail($email);
+
+        if ($user === null) {
+            throw new HttpException(
+                'Email ou mot de passe incorrect.',
+                401
+            );
+        }
+
+        if (
+            !password_verify(
+                $password,
+                (string) $user['password']
+            )
+        ) {
+            throw new HttpException(
+                'Email ou mot de passe incorrect.',
+                401
+            );
+        }
+
+        Session::start();
+
+        Session::set(
+            'user_id',
+            (int) $user['id']
+        );
+
+        return $this->sanitizeUser($user);
+    }
+
+    public function logout(): void
+    {
+        Session::destroy();
+    }
+
+    public function currentUser(): ?array
+    {
+        Session::start();
+
+        $userId = Session::get('user_id');
+
+        if (!$userId) {
+            return null;
+        }
+
+        $user = $this->userRepository->findById(
+            (int) $userId
+        );
+
+        if ($user === null) {
+            Session::destroy();
+
+            return null;
+        }
+
+        return $this->sanitizeUser($user);
+    }
+
+    public function changePassword(
+        int $userId,
+        string $currentPassword,
+        string $newPassword,
+        string $confirmPassword
+    ): void {
+        if ($currentPassword === '') {
+            throw new HttpException(
+                'Lâ€™ancien mot de passe est obligatoire.',
+                422
+            );
+        }
+
+        if (strlen($newPassword) < 8) {
+            throw new HttpException(
+                'Le nouveau mot de passe doit contenir au moins 8 caractÃ¨res.',
+                422
+            );
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            throw new HttpException(
+                'Les nouveaux mots de passe ne correspondent pas.',
+                422
+            );
+        }
+
+        $user = $this->userRepository->findById($userId);
+
+        if ($user === null) {
+            throw new HttpException(
+                'Utilisateur introuvable.',
+                404
+            );
+        }
+
+        if (
+            !password_verify(
+                $currentPassword,
+                (string) $user['password']
+            )
+        ) {
+            throw new HttpException(
+                'Ancien mot de passe incorrect.',
+                401
+            );
+        }
+
+        $hashedPassword = password_hash(
+            $newPassword,
+            PASSWORD_DEFAULT
+        );
+
+        if (
+            !$this->userRepository->updatePassword(
+                $userId,
+                $hashedPassword
+            )
+        ) {
+            throw new HttpException(
+                'Impossible de modifier le mot de passe.',
+                500
+            );
+        }
+    }
+
+    private function sanitizeUser(array $user): array
+    {
+        unset($user['password']);
+
+        return $user;
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\CategoryService.php
+========================================
+<?php
+namespace App\Services;
+
+use App\Repositories\CategoryRepository;
+
+class CategoryService
+{
+    public function __construct(private CategoryRepository $categoryRepository)
+    {
+    }
+
+    public function listCategories(): array
+    {
+        $categories = $this->categoryRepository->findAll();
+        foreach ($categories as &$category) {
+            $category['animal_count'] = count($this->categoryRepository->findAnimalsByCategoryId((int) $category['id']));
+        }
+        return $categories;
+    }
+
+    public function getCategoryById(int $id): ?array
+    {
+        return $this->categoryRepository->findById($id);
+    }
+
+    public function getCategoryAnimals(int $id): array
+    {
+        return $this->categoryRepository->findAnimalsByCategoryId($id);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\FavoriteService.php
+========================================
+<?php
+namespace App\Services;
+
+use App\Repositories\FavoriteRepository;
+use App\Exceptions\HttpException;
+
+class FavoriteService
+{
+    public function __construct(private FavoriteRepository $favoriteRepository)
+    {
+    }
+
+    public function listForUser(int $userId): array
+    {
+        return $this->favoriteRepository->listByUserId($userId);
+    }
+
+    public function toggle(int $userId, int $animalId): array
+    {
+        if ($animalId <= 0) {
+            throw new HttpException('Invalid animal id.', 422);
+        }
+
+        if ($this->favoriteRepository->exists($userId, $animalId)) {
+            $this->favoriteRepository->remove($userId, $animalId);
+        } else {
+            $this->favoriteRepository->add($userId, $animalId);
+        }
+
+        return $this->favoriteRepository->listByUserId($userId);
+    }
+
+    public function remove(int $userId, int $animalId): array
+    {
+        if ($animalId <= 0) {
+            throw new HttpException('Invalid animal id.', 422);
+        }
+
+        $this->favoriteRepository->remove($userId, $animalId);
+        return $this->favoriteRepository->listByUserId($userId);
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\ImageService.php
+========================================
+<?php
+
+namespace App\Services;
+
+use App\Auth\Session;
+use App\Repositories\ImageRepository;
+use App\Exceptions\HttpException;
+use Psr\Http\Message\UploadedFileInterface;
+
+class ImageService
+{
+    private const ALLOWED_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    private const MAX_FILE_SIZE =
+        5 * 1024 * 1024;
+
+    public function __construct(
+        private ImageRepository $imageRepository
+    ) {
+    }
+
+    public function list(): array
+    {
+        $userId = $this->getUserId();
+
+        return $this->imageRepository
+            ->listByUser($userId);
+    }
+
+    public function create(
+        string $title,
+        ?UploadedFileInterface $file
+    ): array {
+        $userId = $this->getUserId();
+
+        $title = trim($title);
+
+        if ($title === '') {
+            throw new HttpException(
+                'Title is required.',
+                422
+            );
+        }
+
+        if (!$file) {
+            throw new HttpException(
+                'Image is required.',
+                422
+            );
+        }
+
+        $this->validateFile($file);
+
+        $filename =
+            $this->generateFilename($file);
+
+        $uploadDirectory =
+            $this->getUploadDirectory();
+
+        $file->moveTo(
+            $uploadDirectory .
+            DIRECTORY_SEPARATOR .
+            $filename
+        );
+
+        $imageUrl =
+            '/uploads/images/' .
+            $filename;
+
+        return $this->imageRepository->create(
+            $userId,
+            $title,
+            $imageUrl
+        );
+    }
+
+    public function update(
+        int $id,
+        string $title,
+        ?UploadedFileInterface $file
+    ): array {
+        $userId = $this->getUserId();
+
+        $image =
+            $this->imageRepository
+                ->findById($id);
+
+        if (!$image) {
+            throw new HttpException(
+                'Image not found.',
+                404
+            );
+        }
+
+        if (
+            (int) $image['user_id'] !==
+            $userId
+        ) {
+            throw new HttpException(
+                'You cannot modify this image.',
+                403
+            );
+        }
+
+        $title = trim($title);
+
+        if ($title === '') {
+            throw new HttpException(
+                'Title is required.',
+                422
+            );
+        }
+
+        $newImageUrl = null;
+
+        if ($file) {
+            $this->validateFile($file);
+
+            $filename =
+                $this->generateFilename($file);
+
+            $uploadDirectory =
+                $this->getUploadDirectory();
+
+            $file->moveTo(
+                $uploadDirectory .
+                DIRECTORY_SEPARATOR .
+                $filename
+            );
+
+            $newImageUrl =
+                '/uploads/images/' .
+                $filename;
+        }
+
+        $updatedImage =
+            $this->imageRepository->update(
+                $id,
+                $userId,
+                $title,
+                $newImageUrl
+            );
+
+        if (!$updatedImage) {
+            throw new HttpException(
+                'Unable to update image.',
+                500
+            );
+        }
+
+        if ($newImageUrl !== null) {
+            $this->deletePhysicalFile(
+                $image['image_url']
+            );
+        }
+
+        return $updatedImage;
+    }
+
+    public function delete(
+        int $id
+    ): void {
+        $userId = $this->getUserId();
+
+        $image =
+            $this->imageRepository
+                ->findById($id);
+
+        if (!$image) {
+            throw new HttpException(
+                'Image not found.',
+                404
+            );
+        }
+
+        if (
+            (int) $image['user_id'] !==
+            $userId
+        ) {
+            throw new HttpException(
+                'You cannot delete this image.',
+                403
+            );
+        }
+
+        $deleted =
+            $this->imageRepository->delete(
+                $id,
+                $userId
+            );
+
+        if (!$deleted) {
+            throw new HttpException(
+                'Unable to delete image.',
+                500
+            );
+        }
+
+        $this->deletePhysicalFile(
+            $image['image_url']
+        );
+    }
+
+    private function getUserId(): int
+    {
+        $userId =
+            Session::get('user_id');
+
+        if (!$userId) {
+            throw new HttpException(
+                'Unauthenticated.',
+                401
+            );
+        }
+
+        return (int) $userId;
+    }
+
+    private function validateFile(
+        UploadedFileInterface $file
+    ): void {
+        if (
+            $file->getError() !==
+            UPLOAD_ERR_OK
+        ) {
+            throw new HttpException(
+                'Image upload failed.',
+                422
+            );
+        }
+
+        if (
+            $file->getSize() >
+            self::MAX_FILE_SIZE
+        ) {
+            throw new HttpException(
+                'Image must not exceed 5 MB.',
+                422
+            );
+        }
+
+        $stream = $file->getStream();
+
+        $contents =
+            $stream->getContents();
+
+        $mimeType =
+            (new \finfo(FILEINFO_MIME_TYPE))
+                ->buffer($contents);
+
+        if (
+            !in_array(
+                $mimeType,
+                self::ALLOWED_MIME_TYPES,
+                true
+            )
+        ) {
+            throw new HttpException(
+                'Only JPG, PNG and WEBP images are allowed.',
+                422
+            );
+        }
+    }
+
+    private function generateFilename(
+        UploadedFileInterface $file
+    ): string {
+        $extension =
+            match ($this->getMimeType($file)) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                default => 'jpg',
+            };
+
+        return uniqid(
+            'image_',
+            true
+        ) . '.' . $extension;
+    }
+
+    private function getMimeType(
+        UploadedFileInterface $file
+    ): string {
+        $stream = $file->getStream();
+
+        $contents =
+            $stream->getContents();
+
+        return (new \finfo(FILEINFO_MIME_TYPE))
+            ->buffer($contents);
+    }
+
+    private function getUploadDirectory(): string
+    {
+        $directory =
+            dirname(__DIR__, 2) .
+            '/public/uploads/images';
+
+        if (!is_dir($directory)) {
+            mkdir(
+                $directory,
+                0755,
+                true
+            );
+        }
+
+        return $directory;
+    }
+
+    private function deletePhysicalFile(
+        string $imageUrl
+    ): void {
+        $filename =
+            basename($imageUrl);
+
+        $path =
+            $this->getUploadDirectory() .
+            DIRECTORY_SEPARATOR .
+            $filename;
+
+        if (is_file($path)) {
+            unlink($path);
+        }
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Services\PublicationService.php
+========================================
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Exceptions\HttpException;
+use App\Repositories\PublicationRepository;
+
+class PublicationService
+{
+    private string $uploadDirectory;
+
+    public function __construct(
+        private PublicationRepository $publicationRepository
+    ) {
+        $this->uploadDirectory =
+            dirname(__DIR__, 2) . '/public/uploads/publications';
+
+        if (!is_dir($this->uploadDirectory)) {
+            mkdir(
+                $this->uploadDirectory,
+                0775,
+                true
+            );
+        }
+    }
+
+    public function list(): array
+    {
+        return $this->publicationRepository->findAll();
+    }
+
+    public function show(int $id): array
+    {
+        $publication =
+            $this->publicationRepository->findById($id);
+
+        if ($publication === null) {
+            throw new HttpException(
+                'Publication introuvable.',
+                404
+            );
+        }
+
+        return $publication;
+    }
+
+    public function create(
+        int $userId,
+        array $data,
+        array $files
+    ): array {
+
+        $title = trim(
+            (string) ($data['title'] ?? '')
+        );
+
+        $description = trim(
+            (string) ($data['description'] ?? '')
+        );
+
+        if ($title === '') {
+            throw new HttpException(
+                'Le titre est obligatoire.',
+                422
+            );
+        }
+
+        $imagePath = null;
+
+        if (
+            isset($files['image']) &&
+            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
+        ) {
+            $imagePath = $this->uploadImage(
+                $files['image']
+            );
+        }
+
+        return $this->publicationRepository->create(
+            $userId,
+            $title,
+            $description,
+            $imagePath
+        );
+    }
+
+    public function update(
+        int $userId,
+        int $id,
+        array $data,
+        array $files
+    ): array {
+
+        $publication =
+            $this->publicationRepository->findById($id);
+
+        if ($publication === null) {
+            throw new HttpException(
+                'Publication introuvable.',
+                404
+            );
+        }
+
+        if ((int) $publication['user_id'] !== $userId) {
+            throw new HttpException(
+                'Vous ne pouvez pas modifier cette publication.',
+                403
+            );
+        }
+
+        $title = trim(
+            (string) (
+                $data['title']
+                ?? $publication['title']
+            )
+        );
+
+        $description = trim(
+            (string) (
+                $data['description']
+                ?? $publication['description']
+            )
+        );
+
+        if ($title === '') {
+            throw new HttpException(
+                'Le titre est obligatoire.',
+                422
+            );
+        }
+
+        $imagePath = null;
+
+        if (
+            isset($files['image']) &&
+            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
+        ) {
+            $imagePath = $this->uploadImage(
+                $files['image']
+            );
+
+            $this->deleteOldImage(
+                $publication['image_url'] ?? null
+            );
+        }
+
+        $this->publicationRepository->update(
+            $id,
+            $title,
+            $description,
+            $imagePath
+        );
+
+        return $this->publicationRepository->findById($id);
+    }
+
+    public function delete(
+        int $userId,
+        int $id
+    ): void {
+
+        $publication =
+            $this->publicationRepository->findById($id);
+
+        if ($publication === null) {
+            throw new HttpException(
+                'Publication introuvable.',
+                404
+            );
+        }
+
+        if ((int) $publication['user_id'] !== $userId) {
+            throw new HttpException(
+                'Vous ne pouvez pas supprimer cette publication.',
+                403
+            );
+        }
+
+        $this->deleteOldImage(
+            $publication['image_url'] ?? null
+        );
+
+        $this->publicationRepository->delete($id);
+    }
+
+    private function uploadImage(
+        array $file
+    ): string {
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            throw new HttpException(
+                'Erreur lors de l upload de l image.',
+                422
+            );
+        }
+
+        if ($file['size'] > 5 * 1024 * 1024) {
+            throw new HttpException(
+                'L image ne doit pas dÃ©passer 5 Mo.',
+                422
+            );
+        }
+
+        $allowedTypes = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp'
+        ];
+
+        $mime = mime_content_type(
+            $file['tmp_name']
+        );
+
+        if (!isset($allowedTypes[$mime])) {
+            throw new HttpException(
+                'Format d image non autorisÃ©.',
+                422
+            );
+        }
+
+        $filename =
+            bin2hex(random_bytes(16))
+            . '.'
+            . $allowedTypes[$mime];
+
+        $destination =
+            $this->uploadDirectory
+            . '/'
+            . $filename;
+
+        if (
+            !move_uploaded_file(
+                $file['tmp_name'],
+                $destination
+            )
+        ) {
+            throw new HttpException(
+                'Impossible de sauvegarder l image.',
+                500
+            );
+        }
+
+        return '/uploads/publications/' . $filename;
+    }
+
+    private function deleteOldImage(
+        ?string $imagePath
+    ): void {
+
+        if (!$imagePath) {
+            return;
+        }
+
+        $relativePath = ltrim(
+            $imagePath,
+            '/'
+        );
+
+        $file =
+            dirname(__DIR__, 2)
+            . '/public/'
+            . $relativePath;
+
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }
+}
+
+========================================
+C:\xampp\htdocs\cours\backend\src\Validators\InputValidator.php
+========================================
+<?php
+namespace App\Validators;
+
+class InputValidator
+{
+    public static function email(string $email): bool
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    public static function required(string $value): bool
+    {
+        return trim($value) !== '';
+    }
+
+    public static function minLength(string $value, int $min): bool
+    {
+        return mb_strlen(trim($value)) >= $min;
+    }
+}
