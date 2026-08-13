@@ -5,24 +5,35 @@
     <main
       class="mx-auto max-w-7xl px-6 py-16 lg:px-8"
     >
-      <div class="mb-10">
-        <p
-          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
-        >
-          Animals
-        </p>
+      <div class="mb-10 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p
+            class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+          >
+            Animals
+          </p>
 
-        <h1
-          class="mt-3 text-4xl font-bold text-black"
-        >
-          Discover animals
-        </h1>
+          <h1
+            class="mt-3 text-4xl font-bold text-black"
+          >
+            Discover animals
+          </h1>
 
-        <p
-          class="mt-4 max-w-2xl text-slate-600"
+          <p
+            class="mt-4 max-w-2xl text-slate-600"
+          >
+            Explore the animals available in our database, ainsi que les
+            annonces publiées par la communauté.
+          </p>
+        </div>
+
+        <router-link
+          v-if="auth.isAuthenticated"
+          to="/dashboard"
+          class="rounded-full bg-brand-blue px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
         >
-          Explore the animals available in our database.
-        </p>
+          + Publier une annonce
+        </router-link>
       </div>
 
       <div
@@ -40,21 +51,31 @@
       </div>
 
       <div
-        v-else-if="animals.length"
+        v-else-if="items.length"
         class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       >
-        <AnimalCard
-          v-for="animal in animals"
-          :key="animal.id"
-          :animal="animal"
-        />
+        <template
+          v-for="item in items"
+          :key="`${item.type}-${item.data.id}`"
+        >
+          <AnimalCard
+            v-if="item.type === 'animal'"
+            :animal="item.data"
+          />
+
+          <PublicationAdCard
+            v-else
+            :publication="item.data"
+            @deleted="handlePublicationDeleted"
+          />
+        </template>
       </div>
 
       <div
         v-else
         class="rounded-3xl bg-white p-12 text-center text-slate-500"
       >
-        Aucun animal disponible.
+        Aucun animal ni annonce disponible pour le moment.
       </div>
     </main>
 
@@ -63,33 +84,61 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
 import AnimalCard from '../components/animals/AnimalCard.vue'
+import PublicationAdCard from '../components/dashboard/PublicationCard.vue'
+
+import { useAuthStore } from '../stores/auth'
 
 import {
   fetchAnimals
 } from '../services/animalService'
 
-import type { Animal } from '../types'
+import {
+  fetchPublications
+} from '../services/publicationService'
+
+import type { Animal, Publication } from '../types'
+
+const auth = useAuthStore()
 
 const animals = ref<Animal[]>([])
+const publications = ref<Publication[]>([])
+
 const loading = ref(true)
 const error = ref('')
 
-async function loadAnimals() {
-  loading.value = true
-  error.value = ''
+/*
+ * Les animaux "officiels" de la base et les annonces publiées par les
+ * utilisateurs sont fusionnés dans une seule liste affichée dans la
+ * même grille : les annonces les plus récentes en premier, suivies
+ * des animaux existants.
+ */
+const items = computed(() => {
+  const publicationItems = publications.value.map(
+    (publication) => ({
+      type: 'publication' as const,
+      data: publication
+    })
+  )
 
+  const animalItems = animals.value.map((animal) => ({
+    type: 'animal' as const,
+    data: animal
+  }))
+
+  return [...publicationItems, ...animalItems]
+})
+
+async function loadAnimals() {
   try {
-    const response =
-      await fetchAnimals()
+    const response = await fetchAnimals()
 
     if (response.success) {
-      animals.value =
-        response.data?.animals ?? []
+      animals.value = response.data?.animals ?? []
     } else {
       error.value =
         response.message ||
@@ -100,12 +149,44 @@ async function loadAnimals() {
 
     error.value =
       'Impossible de contacter le serveur.'
-  } finally {
-    loading.value = false
   }
 }
 
+async function loadPublications() {
+  try {
+    const response = await fetchPublications()
+
+    if (response.success) {
+      publications.value =
+        response.data?.publications ?? []
+    }
+  } catch (err) {
+    console.error(
+      'Erreur chargement des annonces :',
+      err
+    )
+  }
+}
+
+function handlePublicationDeleted(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
+  )
+}
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+
+  await Promise.all([
+    loadAnimals(),
+    loadPublications()
+  ])
+
+  loading.value = false
+}
+
 onMounted(() => {
-  loadAnimals()
+  loadAll()
 })
 </script>

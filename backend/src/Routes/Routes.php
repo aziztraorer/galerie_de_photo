@@ -32,6 +32,12 @@ return function (App $app): void {
         $api->get('/auth/me', [AuthController::class, 'me']);
         $api->post('/auth/logout', [AuthController::class, 'logout']);
 
+        // Les annonces (publications) sont publiques en lecture : elles doivent
+        // s'afficher dans la partie "Animaux" à côté des animaux déjà existants,
+        // même pour un visiteur non connecté.
+        $api->get('/publications', [PublicationController::class, 'list']);
+        $api->get('/publications/{id:[0-9]+}', [PublicationController::class, 'show']);
+
         $api->group('', function (RouteCollectorProxy $protected): void {
 
             $protected->post('/auth/change-password', [AuthController::class, 'changePassword']);
@@ -40,20 +46,24 @@ return function (App $app): void {
             $protected->post('/favorites', [FavoriteController::class, 'add']);
             $protected->delete('/favorites/{animal_id:[0-9]+}', [FavoriteController::class, 'remove']);
 
-            $protected->get('/publications', [PublicationController::class, 'list']);
-            $protected->get('/publications/{id:[0-9]+}', [PublicationController::class, 'show']);
+            // Création, modification et suppression d'une annonce : réservées
+            // à l'utilisateur connecté (et propriétaire de l'annonce pour
+            // modifier/supprimer, vérifié dans PublicationService).
             $protected->post('/publications', [PublicationController::class, 'create']);
             $protected->put('/publications/{id:[0-9]+}', [PublicationController::class, 'update']);
+            // Route POST équivalente, utilisée par le formulaire front (envoi de
+            // fichiers en multipart/form-data, non fiable en PUT natif en PHP).
+            $protected->post('/publications/{id:[0-9]+}/update', [PublicationController::class, 'update']);
             $protected->delete('/publications/{id:[0-9]+}', [PublicationController::class, 'delete']);
 
         })->add(new AuthMiddleware());
 
-        // NOTE : ces routes d'administration n'ont pas de méthode correspondante
+        // NOTE : ces routes d'administration n'ont pas de mÃ©thode correspondante
         // dans AnimalController / CategoryController (pas de store/update/destroy,
-        // ni de service ou repository pour créer/modifier/supprimer). Elles sont
-        // désactivées pour éviter une erreur fatale "Method not found".
+        // ni de service ou repository pour crÃ©er/modifier/supprimer). Elles sont
+        // dÃ©sactivÃ©es pour Ã©viter une erreur fatale "Method not found".
         // Dis-moi si tu veux que je construise ce CRUD admin (service + repository
-        // + contrôleur), ce serait un ajout de fonctionnalité, pas une correction.
+        // + contrÃ´leur), ce serait un ajout de fonctionnalitÃ©, pas une correction.
         //
         // $api->group('/admin', function (RouteCollectorProxy $admin): void {
         //     $admin->post('/animals', [AnimalController::class, 'store']);

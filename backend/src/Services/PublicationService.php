@@ -6,9 +6,19 @@ namespace App\Services;
 
 use App\Exceptions\HttpException;
 use App\Repositories\PublicationRepository;
+use Psr\Http\Message\UploadedFileInterface;
 
 class PublicationService
 {
+    private const ALLOWED_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    private const MAX_FILE_SIZE =
+        5 * 1024 * 1024;
+
     private string $uploadDirectory;
 
     public function __construct(
@@ -69,13 +79,10 @@ class PublicationService
 
         $imagePath = null;
 
-        if (
-            isset($files['image']) &&
-            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
-        ) {
-            $imagePath = $this->uploadImage(
-                $files['image']
-            );
+        $uploadedFile = $this->extractImageFile($files);
+
+        if ($uploadedFile !== null) {
+            $imagePath = $this->uploadImage($uploadedFile);
         }
 
         return $this->publicationRepository->create(
@@ -133,13 +140,10 @@ class PublicationService
 
         $imagePath = null;
 
-        if (
-            isset($files['image']) &&
-            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
-        ) {
-            $imagePath = $this->uploadImage(
-                $files['image']
-            );
+        $uploadedFile = $this->extractImageFile($files);
+
+        if ($uploadedFile !== null) {
+            $imagePath = $this->uploadImage($uploadedFile);
 
             $this->deleteOldImage(
                 $publication['image_url'] ?? null
@@ -185,23 +189,51 @@ class PublicationService
         $this->publicationRepository->delete($id);
     }
 
+    /**
+     * Recupere le fichier "image" envoye par le formulaire, sous forme
+     * d'objet UploadedFileInterface (PSR-7), tel que fourni par Slim.
+     */
+    private function extractImageFile(
+        array $files
+    ): ?UploadedFileInterface {
+
+        $file = $files['image'] ?? null;
+
+        if (!$file instanceof UploadedFileInterface) {
+            return null;
+        }
+
+        if ($file->getError() === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        return $file;
+    }
+
     private function uploadImage(
-        array $file
+        UploadedFileInterface $file
     ): string {
 
-        if ($file['error'] !== UPLOAD_ERR_OK) {
+        if ($file->getError() !== UPLOAD_ERR_OK) {
             throw new HttpException(
                 'Erreur lors de l upload de l image.',
                 422
             );
         }
 
-        if ($file['size'] > 5 * 1024 * 1024) {
+        if ($file->getSize() > self::MAX_FILE_SIZE) {
             throw new HttpException(
-                'L image ne doit pas dépasser 5 Mo.',
+                'L image ne doit pas dÃ©passer 5 Mo.',
                 422
             );
         }
+
+        $stream = $file->getStream();
+
+        $contents = $stream->getContents();
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))
+            ->buffer($contents);
 
         $allowedTypes = [
             'image/jpeg' => 'jpg',
@@ -209,13 +241,9 @@ class PublicationService
             'image/webp' => 'webp'
         ];
 
-        $mime = mime_content_type(
-            $file['tmp_name']
-        );
-
         if (!isset($allowedTypes[$mime])) {
             throw new HttpException(
-                'Format d image non autorisé.',
+                'Format d image non autorisÃ©.',
                 422
             );
         }
@@ -227,15 +255,18 @@ class PublicationService
 
         $destination =
             $this->uploadDirectory
-            . '/'
+            . DIRECTORY_SEPARATOR
             . $filename;
 
-        if (
-            !move_uploaded_file(
-                $file['tmp_name'],
-                $destination
-            )
-        ) {
+        // Le flux a deja ete lu plus haut pour detecter le type MIME :
+        // on repositionne le curseur avant de deplacer le fichier.
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        }
+
+        try {
+            $file->moveTo($destination);
+        } catch (\Throwable $e) {
             throw new HttpException(
                 'Impossible de sauvegarder l image.',
                 500

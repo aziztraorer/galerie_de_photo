@@ -228,8 +228,15 @@ import {
 import { useAuthStore } from '../../stores/auth'
 import { logoutUser } from '../../services/authService'
 
+import {
+  fetchPublications,
+  deletePublication as deletePublicationRequest
+} from '../../services/publicationService'
+
 import PublicationForm from './PublicationForm.vue'
 import PublicationCard from './PublicationCard.vue'
+
+import type { Publication } from '../../types'
 
 
 /*
@@ -244,11 +251,11 @@ const auth = useAuthStore()
 
 /*
 |--------------------------------------------------------------------------
-| Ã‰tat
+| Ãƒâ€°tat
 |--------------------------------------------------------------------------
 */
 
-const publications = ref<any[]>([])
+const publications = ref<Publication[]>([])
 
 const loading = ref(true)
 
@@ -263,12 +270,12 @@ const menuOpen = ref(false)
 |--------------------------------------------------------------------------
 */
 
-const editingPublication = ref<any | null>(null)
+const editingPublication = ref<Publication | null>(null)
 
 
 /*
 |--------------------------------------------------------------------------
-| RÃ©fÃ©rence du formulaire
+| RÃƒÂ©fÃƒÂ©rence du formulaire
 |--------------------------------------------------------------------------
 */
 
@@ -280,6 +287,12 @@ const formSection =
 |--------------------------------------------------------------------------
 | Charger les publications
 |--------------------------------------------------------------------------
+|
+| IMPORTANT :
+| L'API /publications renvoie les annonces de TOUS les utilisateurs
+| (elles doivent ÃƒÂªtre publiques cÃƒÂ´tÃƒÂ© page "Animaux"). Ici, dans le
+| tableau de bord, on ne garde que celles de l'utilisateur connectÃƒÂ©.
+|
 */
 
 async function loadPublications() {
@@ -290,36 +303,28 @@ async function loadPublications() {
 
   try {
 
-    const response = await fetch(
-      '/api/publications',
-      {
-        method: 'GET',
+    const response = await fetchPublications()
 
-        credentials: 'include',
-
-        headers: {
-          Accept: 'application/json'
-        }
-      }
-    )
-
-    const data =
-      await response.json()
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       error.value =
-        data.message ||
+        response.message ||
         'Impossible de charger les publications.'
 
       return
+
     }
 
-    publications.value =
-      data.data?.publications || []
+    const allPublications =
+      response.data?.publications || []
+
+    publications.value = auth.user
+      ? allPublications.filter(
+          publication =>
+            Number(publication.user_id) ===
+            Number(auth.user!.id)
+        )
+      : []
 
   } catch (err) {
 
@@ -346,40 +351,18 @@ async function loadPublications() {
 */
 
 async function editPublication(
-  publication: any
+  publication: Publication
 ) {
 
-  console.log(
-    'Publication reÃ§ue par Dashboard :',
-    publication
-  )
-
-
-  /*
-   * CrÃ©er une copie.
-   */
-
   editingPublication.value = {
-    ...publication,
-
-    images: publication.images
-      ? [...publication.images]
-      : []
+    ...publication
   }
 
-
-  console.log(
-    'Publication en Ã©dition :',
-    editingPublication.value
-  )
-
-
   /*
-   * Attendre la mise Ã  jour de Vue.
+   * Attendre la mise Ãƒ  jour de Vue.
    */
 
   await nextTick()
-
 
   /*
    * Aller vers le formulaire.
@@ -408,7 +391,7 @@ function cancelEdit() {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLICATION CRÃ‰Ã‰E
+| PUBLICATION CRÃƒâ€°Ãƒâ€°E
 |--------------------------------------------------------------------------
 */
 
@@ -423,18 +406,11 @@ async function handlePublished() {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLICATION MODIFIÃ‰E
+| PUBLICATION MODIFIÃƒâ€°E
 |--------------------------------------------------------------------------
 */
 
-async function handleUpdated(
-  data: any
-) {
-
-  console.log(
-    'Publication modifiÃ©e :',
-    data
-  )
+async function handleUpdated() {
 
   editingPublication.value = null
 
@@ -462,48 +438,27 @@ async function deletePublication(
     return
   }
 
-
   try {
 
     const response =
-      await fetch(
-        `/api/publications/${id}`,
-        {
-          method: 'DELETE',
+      await deletePublicationRequest(id)
 
-          credentials: 'include',
-
-          headers: {
-            Accept: 'application/json'
-          }
-        }
-      )
-
-
-    const data =
-      await response.json()
-
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       window.alert(
-        data.message ||
+        response.message ||
         'Impossible de supprimer la publication.'
       )
 
       return
-    }
 
+    }
 
     publications.value =
       publications.value.filter(
         publication =>
           publication.id !== id
       )
-
 
   } catch (err) {
 
@@ -523,7 +478,7 @@ async function deletePublication(
 
 /*
 |--------------------------------------------------------------------------
-| DÃ‰CONNEXION
+| DÃƒâ€°CONNEXION
 |--------------------------------------------------------------------------
 */
 
@@ -536,7 +491,7 @@ async function logout() {
   } catch (err) {
 
     console.error(
-      'Erreur dÃ©connexion :',
+      'Erreur dÃƒÂ©connexion :',
       err
     )
 
@@ -678,7 +633,7 @@ onMounted(
 
             <LogOut class="h-4 w-4" />
 
-            DÃ©connexion
+            DÃƒÂ©connexion
 
           </button>
 
@@ -763,7 +718,7 @@ onMounted(
 
           <LogOut class="h-5 w-5" />
 
-          DÃ©connexion
+          DÃƒÂ©connexion
 
         </button>
 
@@ -848,7 +803,7 @@ onMounted(
 
             <LogOut class="h-5 w-5" />
 
-            DÃ©connexion
+            DÃƒÂ©connexion
 
           </button>
 
@@ -883,7 +838,7 @@ onMounted(
           </h1>
 
           <p class="mt-2 text-slate-600">
-            GÃ©rez vos publications et ajoutez vos animaux.
+            GÃƒÂ©rez vos publications et ajoutez vos animaux.
           </p>
 
         </div>
@@ -1028,7 +983,7 @@ onMounted(
               class="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white"
               @click="loadPublications"
             >
-              RÃ©essayer
+              RÃƒÂ©essayer
             </button>
 
           </div>
@@ -1062,7 +1017,7 @@ onMounted(
             <p
               class="mt-2 text-sm text-slate-500"
             >
-              Vous n'avez pas encore crÃ©Ã© de publication.
+              Vous n'avez pas encore crÃƒÂ©ÃƒÂ© de publication.
             </p>
 
           </div>
@@ -1098,222 +1053,152 @@ onMounted(
 ========================================
 C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationCard.vue
 ========================================
+<template>
+  <article
+    class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+  >
+    <div class="relative h-48 overflow-hidden bg-slate-100">
+      <img
+        v-if="publication.image_url"
+        :src="getImageUrl(publication.image_url)"
+        :alt="publication.title"
+        class="h-full w-full object-cover transition duration-300 hover:scale-105"
+        loading="lazy"
+      />
+
+      <div
+        v-else
+        class="flex h-full items-center justify-center text-sm text-slate-400"
+      >
+        Aucune image
+      </div>
+
+      <span
+        class="absolute left-3 top-3 rounded-full bg-brand-blue px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow"
+      >
+        Annonce
+      </span>
+    </div>
+
+    <div class="space-y-3 p-6">
+      <div>
+        <p
+          v-if="publication.user_name"
+          class="text-sm font-semibold uppercase tracking-[0.25em] text-brand-blue"
+        >
+          PubliÃ© par {{ publication.user_name }}
+        </p>
+
+        <h3 class="text-xl font-semibold text-black">
+          {{ publication.title }}
+        </h3>
+      </div>
+
+      <p
+        v-if="publication.description"
+        class="text-sm leading-7 text-slate-700"
+      >
+        {{ publication.description }}
+      </p>
+
+      <p
+        v-else
+        class="text-sm text-slate-400"
+      >
+        Aucune description disponible.
+      </p>
+
+      <div
+        v-if="isOwner"
+        class="flex items-center justify-end gap-3 pt-2"
+      >
+        <button
+          type="button"
+          :disabled="deleting"
+          class="flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="handleDelete"
+        >
+          <Trash2 class="h-4 w-4" />
+          Supprimer
+        </button>
+
+        <router-link
+          :to="{ path: '/dashboard', query: { edit: publication.id } }"
+          class="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+        >
+          <Pencil class="h-4 w-4" />
+          Modifier
+        </router-link>
+      </div>
+    </div>
+  </article>
+</template>
+
 <script setup lang="ts">
-import {
-  Pencil,
-  Trash2,
-  Image as ImageIcon
-} from 'lucide-vue-next'
+import { computed, ref } from 'vue'
+import { Pencil, Trash2 } from 'lucide-vue-next'
 
-interface PublicationImage {
-  id: number
-  image_url: string
-}
+import { useAuthStore } from '../../stores/auth'
+import { getImageUrl } from '../../services/imageService'
+import { deletePublication } from '../../services/publicationService'
 
-interface Publication {
-  id: number
-  user_id?: number
-  title: string
-  description?: string
-  category_id?: number | null
-  created_at?: string
-  updated_at?: string
-  images?: PublicationImage[]
-}
+import type { Publication } from '../../types'
 
 const props = defineProps<{
   publication: Publication
 }>()
 
 const emit = defineEmits<{
-  delete: [id: number]
-  edit: [publication: Publication]
+  deleted: [id: number]
 }>()
 
-/*
-|--------------------------------------------------------------------------
-| URL du backend
-|--------------------------------------------------------------------------
-*/
+const auth = useAuthStore()
 
-const API_URL = 'http://localhost/cours/backend/public'
+const deleting = ref(false)
 
-function getImageUrl(path: string): string {
-  if (!path) {
-    return ''
+const isOwner = computed(() => {
+  return (
+    auth.isAuthenticated &&
+    auth.user &&
+    Number(auth.user.id) === Number(props.publication.user_id)
+  )
+})
+
+async function handleDelete() {
+  const confirmed = window.confirm(
+    'Voulez-vous vraiment supprimer cette annonce ?'
+  )
+
+  if (!confirmed) {
+    return
   }
 
-  if (
-    path.startsWith('http://') ||
-    path.startsWith('https://')
-  ) {
-    return path
+  deleting.value = true
+
+  try {
+    const response = await deletePublication(props.publication.id)
+
+    if (!response.success) {
+      window.alert(
+        response.message ||
+        'Impossible de supprimer cette annonce.'
+      )
+
+      return
+    }
+
+    emit('deleted', props.publication.id)
+  } catch (error) {
+    console.error('Erreur suppression annonce :', error)
+
+    window.alert(
+      'Une erreur est survenue lors de la suppression.'
+    )
+  } finally {
+    deleting.value = false
   }
-
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`
-}
-
-/*
-|--------------------------------------------------------------------------
-| Modifier
-|--------------------------------------------------------------------------
-*/
-
-function editPublication() {
-  console.log(
-    'Clic Modifier :',
-    props.publication
-  )
-
-  emit(
-    'edit',
-    props.publication
-  )
-}
-
-/*
-|--------------------------------------------------------------------------
-| Supprimer
-|--------------------------------------------------------------------------
-*/
-
-function deletePublication() {
-  emit(
-    'delete',
-    props.publication.id
-  )
 }
 </script>
-
-<template>
-
-  <article
-    class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
-  >
-
-    <!-- =====================================================
-         IMAGES
-    ====================================================== -->
-
-    <div
-      v-if="
-        publication.images &&
-        publication.images.length > 0
-      "
-      class="grid grid-cols-2 gap-1 sm:grid-cols-4"
-    >
-
-      <div
-        v-for="image in publication.images"
-        :key="image.id"
-        class="aspect-square overflow-hidden bg-slate-100"
-      >
-
-        <img
-          :src="getImageUrl(image.image_url)"
-          :alt="publication.title"
-          class="h-full w-full object-cover transition duration-300 hover:scale-105"
-          loading="lazy"
-        />
-
-      </div>
-
-    </div>
-
-
-    <!-- =====================================================
-         AUCUNE IMAGE
-    ====================================================== -->
-
-    <div
-      v-else
-      class="flex h-48 items-center justify-center bg-slate-100"
-    >
-
-      <div class="text-center">
-
-        <ImageIcon
-          class="mx-auto h-10 w-10 text-slate-400"
-        />
-
-        <p class="mt-2 text-sm text-slate-500">
-          Aucune image
-        </p>
-
-      </div>
-
-    </div>
-
-
-    <!-- =====================================================
-         CONTENU
-    ====================================================== -->
-
-    <div class="p-5">
-
-      <h3 class="text-xl font-bold text-black">
-        {{ publication.title }}
-      </h3>
-
-      <p
-        v-if="publication.description"
-        class="mt-2 line-clamp-3 text-sm leading-6 text-slate-600"
-      >
-        {{ publication.description }}
-      </p>
-
-      <p
-        v-if="publication.created_at"
-        class="mt-3 text-xs text-slate-400"
-      >
-        PubliÃ© le {{ publication.created_at }}
-      </p>
-
-
-      <!-- =================================================
-           ACTIONS
-      ================================================== -->
-
-      <div
-        class="mt-5 flex flex-wrap gap-3 border-t border-slate-100 pt-4"
-      >
-
-        <!-- Modifier -->
-
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-          @click="editPublication"
-        >
-
-          <Pencil class="h-4 w-4" />
-
-          Modifier
-
-        </button>
-
-
-        <!-- Supprimer -->
-
-        <button
-          type="button"
-          class="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
-          @click="deletePublication"
-        >
-
-          <Trash2 class="h-4 w-4" />
-
-          Supprimer
-
-        </button>
-
-      </div>
-
-    </div>
-
-  </article>
-
-</template>
 
 ========================================
 C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationForm.vue
@@ -1334,24 +1219,14 @@ import {
   Pencil
 } from 'lucide-vue-next'
 
+import {
+  createPublication,
+  updatePublication
+} from '../../services/publicationService'
 
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
+import { getImageUrl } from '../../services/imageService'
 
-interface PublicationImage {
-  id: number
-  image_url: string
-}
-
-interface Publication {
-  id: number
-  title: string
-  description?: string
-  images?: PublicationImage[]
-}
+import type { Publication } from '../../types'
 
 
 /*
@@ -1387,8 +1262,8 @@ const emit = defineEmits<{
 const title = ref('')
 const description = ref('')
 
-const files = ref<File[]>([])
-const previews = ref<string[]>([])
+const file = ref<File | null>(null)
+const preview = ref<string>('')
 
 const loading = ref(false)
 
@@ -1401,7 +1276,7 @@ const fileInput =
 
 /*
 |--------------------------------------------------------------------------
-| Mode Ã©dition
+| Mode ÃƒÂ©dition
 |--------------------------------------------------------------------------
 */
 
@@ -1412,59 +1287,17 @@ const isEditing = computed(() => {
 
 /*
 |--------------------------------------------------------------------------
-| URL API
-|--------------------------------------------------------------------------
-|
-| IMPORTANT :
-| On utilise la mÃªme origine API partout.
-|
+| Nettoyer la preview blob
 |--------------------------------------------------------------------------
 */
 
-const API_URL =
-  'http://localhost/cours/backend/public'
+function clearBlobPreview() {
 
+  if (preview.value.startsWith('blob:')) {
 
-/*
-|--------------------------------------------------------------------------
-| Construire URL image
-|--------------------------------------------------------------------------
-*/
+    URL.revokeObjectURL(preview.value)
 
-function getImageUrl(path: string): string {
-
-  if (!path) {
-    return ''
   }
-
-  if (
-    path.startsWith('http://') ||
-    path.startsWith('https://')
-  ) {
-    return path
-  }
-
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| Nettoyer les previews blob
-|--------------------------------------------------------------------------
-*/
-
-function clearBlobPreviews() {
-
-  previews.value.forEach(url => {
-
-    if (url.startsWith('blob:')) {
-
-      URL.revokeObjectURL(url)
-
-    }
-
-  })
 
 }
 
@@ -1477,77 +1310,23 @@ function clearBlobPreviews() {
 
 function loadPublication() {
 
-  /*
-   * Nettoyer uniquement les anciennes
-   * previews locales.
-   */
-
-  previews.value.forEach(url => {
-
-    if (url.startsWith('blob:')) {
-
-      URL.revokeObjectURL(url)
-
-    }
-
-  })
-
-
-  /*
-   * Titre
-   */
+  clearBlobPreview()
 
   title.value =
     props.publication?.title || ''
 
-
-  /*
-   * Description
-   */
-
   description.value =
     props.publication?.description || ''
 
+  preview.value =
+    props.publication?.image_url
+      ? getImageUrl(props.publication.image_url)
+      : ''
 
-  /*
-   * Images existantes
-   */
-
-  if (
-    props.publication?.images &&
-    props.publication.images.length > 0
-  ) {
-
-    previews.value =
-      props.publication.images.map(image =>
-        getImageUrl(image.image_url)
-      )
-
-  } else {
-
-    previews.value = []
-
-  }
-
-
-  /*
-   * Nouvelles images
-   */
-
-  files.value = []
-
-
-  /*
-   * Messages
-   */
+  file.value = null
 
   message.value = ''
   success.value = false
-
-
-  /*
-   * Reset input file
-   */
 
   if (fileInput.value) {
 
@@ -1579,157 +1358,45 @@ watch(
 
 /*
 |--------------------------------------------------------------------------
-| SÃ©lection des images
+| SÃƒÂ©lection de l'image
 |--------------------------------------------------------------------------
 */
 
-function selectFiles(event: Event) {
+function selectFile(event: Event) {
 
   const input =
     event.target as HTMLInputElement
 
+  const selectedFile =
+    input.files && input.files.length > 0
+      ? input.files[0]
+      : null
 
-  const selectedFiles =
-    Array.from(input.files || [])
+  message.value = ''
 
+  clearBlobPreview()
 
-  /*
-   * Maximum 4 nouvelles images.
-   */
+  file.value = selectedFile
 
-  if (selectedFiles.length > 4) {
-
-    message.value =
-      'Vous pouvez sÃ©lectionner maximum 4 images.'
-
-    success.value = false
-
-  } else {
-
-    message.value = ''
-
-  }
-
-
-  /*
-   * Garder maximum 4 fichiers.
-   */
-
-  files.value =
-    selectedFiles.slice(0, 4)
-
-
-  /*
-   * Supprimer les anciennes previews blob.
-   */
-
-  previews.value =
-    previews.value.filter(preview => {
-
-      if (preview.startsWith('blob:')) {
-
-        URL.revokeObjectURL(preview)
-
-        return false
-
-      }
-
-      return true
-
-    })
-
-
-  /*
-   * CrÃ©er previews.
-   */
-
-  const newPreviews =
-    files.value.map(file =>
-      URL.createObjectURL(file)
-    )
-
-
-  /*
-   * Anciennes images serveur
-   * + nouvelles images locales
-   */
-
-  previews.value = [
-    ...previews.value,
-    ...newPreviews
-  ]
+  preview.value = selectedFile
+    ? URL.createObjectURL(selectedFile)
+    : ''
 
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| Supprimer une image
+| Supprimer l'image sÃƒÂ©lectionnÃƒÂ©e
 |--------------------------------------------------------------------------
 */
 
-function removeImage(index: number) {
+function removeImage() {
 
-  const preview =
-    previews.value[index]
+  clearBlobPreview()
 
-
-  /*
-   * Si image locale.
-   */
-
-  if (
-    preview &&
-    preview.startsWith('blob:')
-  ) {
-
-    URL.revokeObjectURL(preview)
-
-
-    /*
-     * Trouver l'index du fichier
-     * correspondant.
-     */
-
-    const blobIndexes =
-      previews.value
-        .map((url, i) =>
-          url.startsWith('blob:')
-            ? i
-            : -1
-        )
-        .filter(i => i !== -1)
-
-
-    const fileIndex =
-      blobIndexes.indexOf(index)
-
-
-    if (fileIndex !== -1) {
-
-      files.value.splice(
-        fileIndex,
-        1
-      )
-
-    }
-
-  }
-
-
-  /*
-   * Supprimer preview.
-   */
-
-  previews.value.splice(
-    index,
-    1
-  )
-
-
-  /*
-   * Reset input.
-   */
+  file.value = null
+  preview.value = ''
 
   if (fileInput.value) {
 
@@ -1748,7 +1415,7 @@ function removeImage(index: number) {
 
 function cancelEdit() {
 
-  clearBlobPreviews()
+  clearBlobPreview()
 
   emit('cancel')
 
@@ -1766,11 +1433,6 @@ async function publish() {
   message.value = ''
   success.value = false
 
-
-  /*
-   * VÃ©rification titre.
-   */
-
   if (!title.value.trim()) {
 
     message.value =
@@ -1780,194 +1442,51 @@ async function publish() {
 
   }
 
-
   /*
-   * Pour une nouvelle publication :
-   * image obligatoire.
+   * Pour une nouvelle publication : image obligatoire.
    */
 
   if (
     !isEditing.value &&
-    files.value.length === 0
+    !file.value
   ) {
 
     message.value =
-      'Veuillez sÃ©lectionner au moins une image.'
+      'Veuillez sÃƒÂ©lectionner une image.'
 
     return
 
   }
 
-
-  /*
-   * FormData
-   */
-
-  const formData =
-    new FormData()
-
-
-  formData.append(
-    'title',
-    title.value.trim()
-  )
-
-
-  formData.append(
-    'description',
-    description.value.trim()
-  )
-
-
-  /*
-   * Nouvelles images.
-   */
-
-  files.value.forEach(file => {
-
-    formData.append(
-      'images[]',
-      file
-    )
-
-  })
-
-
-  /*
-   * URL et mÃ©thode.
-   */
-
-  let url =
-    `${API_URL}/api/publications`
-
-
-  let method =
-    'POST'
-
-
-  /*
-   |--------------------------------------------------------------------------
-   | MODIFICATION
-   |--------------------------------------------------------------------------
-   |
-   | IMPORTANT :
-   | On utilise maintenant :
-   |
-   | POST /api/publications/{id}/update
-   |
-   | au lieu de :
-   |
-   | POST /api/publications/{id}
-   |
-   | avec _method=PUT.
-   |
-   */
-
-  if (
-    isEditing.value &&
-    props.publication
-  ) {
-
-    url =
-      `${API_URL}/api/publications/${props.publication.id}/update`
-
-    method =
-      'POST'
-
-  }
-
-
-  /*
-   * Debug.
-   */
-
-  console.log(
-    'RequÃªte publication :',
-    {
-      url,
-      method,
-      publicationId:
-        props.publication?.id,
-      isEditing:
-        isEditing.value
-    }
-  )
-
-
   loading.value = true
-
 
   try {
 
-    const response =
-      await fetch(
-        url,
-        {
-          method,
+    let response
 
-          credentials: 'include',
+    if (isEditing.value && props.publication) {
 
-          body: formData
-        }
+      response = await updatePublication(
+        props.publication.id,
+        title.value.trim(),
+        description.value.trim(),
+        file.value
       )
 
+    } else {
 
-    /*
-     * RÃ©cupÃ©rer le contenu avant JSON.
-     *
-     * Cela Ã©vite :
-     *
-     * Unexpected token '<'
-     *
-     * lorsque PHP renvoie une erreur HTML.
-     */
-
-    const responseText =
-      await response.text()
-
-
-    console.log(
-      'RÃ©ponse serveur :',
-      responseText
-    )
-
-
-    let data: any
-
-
-    try {
-
-      data =
-        JSON.parse(responseText)
-
-    } catch (jsonError) {
-
-      console.error(
-        'RÃ©ponse serveur non JSON :',
-        responseText
+      response = await createPublication(
+        title.value.trim(),
+        description.value.trim(),
+        file.value
       )
-
-      message.value =
-        `Le serveur a retournÃ© une rÃ©ponse invalide (${response.status}).`
-
-      success.value = false
-
-      return
 
     }
 
-
-    /*
-     * VÃ©rifier rÃ©ponse HTTP.
-     */
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       message.value =
-        data.message ||
+        response.message ||
         'Une erreur est survenue.'
 
       success.value = false
@@ -1976,41 +1495,22 @@ async function publish() {
 
     }
 
-
-    /*
-     |--------------------------------------------------------------------------
-     | CRÃ‰ATION
-     |--------------------------------------------------------------------------
-     */
-
     if (!isEditing.value) {
 
       success.value = true
 
       message.value =
-        'Publication crÃ©Ã©e avec succÃ¨s.'
+        'Publication crÃƒÂ©ÃƒÂ©e avec succÃƒÂ¨s.'
 
-
-      emit(
-        'published',
-        data
-      )
-
-
-      /*
-       * Reset formulaire.
-       */
+      emit('published', response)
 
       title.value = ''
-
       description.value = ''
 
-      clearBlobPreviews()
+      clearBlobPreview()
 
-      files.value = []
-
-      previews.value = []
-
+      file.value = null
+      preview.value = ''
 
       if (fileInput.value) {
 
@@ -2018,30 +1518,16 @@ async function publish() {
 
       }
 
-    }
-
-
-    /*
-     |--------------------------------------------------------------------------
-     | MODIFICATION
-     |--------------------------------------------------------------------------
-     */
-
-    else {
+    } else {
 
       success.value = true
 
       message.value =
-        'Publication modifiÃ©e avec succÃ¨s.'
+        'Publication modifiÃƒÂ©e avec succÃƒÂ¨s.'
 
-
-      emit(
-        'updated',
-        data
-      )
+      emit('updated', response)
 
     }
-
 
   } catch (error) {
 
@@ -2050,12 +1536,10 @@ async function publish() {
       error
     )
 
-
     message.value =
       'Impossible de contacter le serveur.'
 
     success.value = false
-
 
   } finally {
 
@@ -2074,7 +1558,7 @@ async function publish() {
 
 onBeforeUnmount(() => {
 
-  clearBlobPreviews()
+  clearBlobPreview()
 
 })
 
@@ -2101,12 +1585,11 @@ onBeforeUnmount(() => {
         Titre de l'annonce
       </label>
 
-
       <input
         id="publication-title"
         v-model="title"
         type="text"
-        placeholder="Ex : Chien disponible Ã  Abidjan"
+        placeholder="Ex : Chien disponible Ãƒ  Abidjan"
         class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
       />
 
@@ -2126,12 +1609,11 @@ onBeforeUnmount(() => {
         Description
       </label>
 
-
       <textarea
         id="publication-description"
         v-model="description"
         rows="5"
-        placeholder="DÃ©crivez votre animal..."
+        placeholder="DÃƒÂ©crivez votre animal..."
         class="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
       ></textarea>
 
@@ -2139,84 +1621,60 @@ onBeforeUnmount(() => {
 
 
     <!-- =====================================================
-         IMAGES
+         IMAGE
     ====================================================== -->
 
     <div>
 
       <label
-        for="publication-images"
+        for="publication-image"
         class="mb-2 block text-sm font-medium text-slate-700"
       >
-        Images
+        Image
       </label>
 
-
       <label
-        for="publication-images"
+        v-if="!preview"
+        for="publication-image"
         class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-brand-blue hover:bg-blue-50"
       >
 
-        <ImagePlus
-          class="h-10 w-10 text-slate-400"
-        />
+        <ImagePlus class="h-10 w-10 text-slate-400" />
 
-
-        <p
-          class="mt-3 text-sm font-medium text-slate-700"
-        >
-          Ajouter des images
+        <p class="mt-3 text-sm font-medium text-slate-700">
+          Ajouter une image
         </p>
 
-
-        <p
-          class="mt-1 text-xs text-slate-500"
-        >
-          JPG, PNG ou WEBP â€” maximum 4 images
+        <p class="mt-1 text-xs text-slate-500">
+          JPG, PNG ou WEBP Ã¢â‚¬â€ 5 Mo maximum
         </p>
 
       </label>
 
-
       <input
-        id="publication-images"
+        id="publication-image"
         ref="fileInput"
         type="file"
-        multiple
         accept="image/jpeg,image/png,image/webp"
         class="hidden"
-        @change="selectFiles"
+        @change="selectFile"
       />
 
-    </div>
-
-
-    <!-- =====================================================
-         PREVISUALISATION
-    ====================================================== -->
-
-    <div
-      v-if="previews.length"
-      class="grid grid-cols-2 gap-4 sm:grid-cols-4"
-    >
-
       <div
-        v-for="(preview, index) in previews"
-        :key="`${preview}-${index}`"
-        class="group relative aspect-square overflow-hidden rounded-2xl border border-slate-200"
+        v-if="preview"
+        class="group relative mt-2 aspect-video w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200"
       >
 
         <img
           :src="preview"
-          :alt="`Image ${index + 1}`"
+          alt="AperÃƒÂ§u de l'image"
           class="h-full w-full object-cover"
         />
-
 
         <button
           type="button"
           class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
-          @click="removeImage(index)"
+          @click="removeImage"
         >
 
           <X class="h-4 w-4" />
@@ -2250,9 +1708,7 @@ onBeforeUnmount(() => {
          BOUTONS
     ====================================================== -->
 
-    <div
-      class="flex flex-col gap-3 sm:flex-row"
-    >
+    <div class="flex flex-col gap-3 sm:flex-row">
 
       <button
         type="submit"
@@ -2260,27 +1716,18 @@ onBeforeUnmount(() => {
         class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
 
-        <Pencil
-          v-if="isEditing"
-          class="h-5 w-5"
-        />
-
-        <Send
-          v-else
-          class="h-5 w-5"
-        />
-
+        <Pencil v-if="isEditing" class="h-5 w-5" />
+        <Send v-else class="h-5 w-5" />
 
         {{
           loading
             ? 'Enregistrement...'
             : isEditing
               ? 'Modifier la publication'
-              : 'Publier lâ€™annonce'
+              : "Publier l'annonce"
         }}
 
       </button>
-
 
       <button
         v-if="isEditing"
@@ -2288,9 +1735,7 @@ onBeforeUnmount(() => {
         class="rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
         @click="cancelEdit"
       >
-
         Annuler
-
       </button>
 
     </div>
@@ -2315,21 +1760,13 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Footer.vue
 C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
 ========================================
 <template>
-  import {
-  PawPrint,
-  LayoutGrid,
-  Folder,
-  Heart,
-  User,
-  LogOut
-} from 'lucide-vue-next'
   <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
     <div
       class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8"
     >
       <!-- Logo / Nom -->
       <router-link
-        to="/"
+        :to="auth.isAuthenticated ? '/animals' : '/'"
         class="text-lg font-semibold tracking-tight text-black"
       >
         AzizDev Animals
@@ -2340,6 +1777,7 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
         class="hidden items-center gap-6 text-sm font-medium text-slate-700 lg:flex"
       >
         <router-link
+          v-if="!auth.isAuthenticated"
           to="/"
           class="transition hover:text-brand-blue"
           exact-active-class="text-brand-blue"
@@ -2363,8 +1801,16 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
           Categories
         </router-link>
 
-        <!-- Utilisateur connectÃ© -->
+        <!-- Utilisateur connectÃƒÂ© -->
         <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Dashboard
+          </router-link>
+
           <router-link
             to="/favorites"
             class="transition hover:text-brand-blue"
@@ -2390,7 +1836,7 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
           </button>
         </template>
 
-        <!-- Utilisateur non connectÃ© -->
+        <!-- Utilisateur non connectÃƒÂ© -->
         <template v-else>
           <router-link
             to="/login"
@@ -2429,6 +1875,7 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
       <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
 
         <router-link
+          v-if="!auth.isAuthenticated"
           to="/"
           @click="isOpen = false"
         >
@@ -2449,8 +1896,15 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
           Categories
         </router-link>
 
-        <!-- Utilisateur connectÃ© -->
+        <!-- Utilisateur connectÃƒÂ© -->
         <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            @click="isOpen = false"
+          >
+            Dashboard
+          </router-link>
+
           <router-link
             to="/favorites"
             @click="isOpen = false"
@@ -2474,7 +1928,7 @@ C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
           </button>
         </template>
 
-        <!-- Utilisateur non connectÃ© -->
+        <!-- Utilisateur non connectÃƒÂ© -->
         <template v-else>
           <router-link
             to="/login"
@@ -2513,7 +1967,7 @@ async function logout() {
   try {
     await logoutUser()
   } catch (error) {
-    console.error('Erreur lors de la dÃ©connexion :', error)
+    console.error('Erreur lors de la dÃƒÂ©connexion :', error)
   }
 
   // Supprimer l'utilisateur du store
@@ -2542,6 +1996,8 @@ import FavoritesView from '../views/Favorites.vue'
 import AnimalDetailsView from '../views/AnimalDetails.vue'
 import NotFoundView from '../views/NotFound.vue'
 import DashboardView from '../views/Dashboard.vue'
+
+import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
@@ -2617,6 +2073,25 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+/*
+ * Une fois connectÃ©, la partie "Home" (page d'accueil / landing page)
+ * ne doit plus Ãªtre accessible : on redirige automatiquement vers la
+ * page Animaux.
+ */
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+
+  if (!auth.user && !auth.isLoading) {
+    await auth.hydrate()
+  }
+
+  if (to.name === 'home' && auth.isAuthenticated) {
+    return { path: '/animals' }
+  }
+
+  return true
 })
 
 export default router
@@ -2718,6 +2193,12 @@ export interface AuthData {
   user: User
 }
 
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  confirm_password: string
+}
+
 /**
  * Connexion
  */
@@ -2767,6 +2248,20 @@ export async function logoutUser(): Promise<
 > {
   const response = await api.post<ApiResponse<null>>(
     '/auth/logout'
+  )
+
+  return response.data
+}
+
+/**
+ * Changer le mot de passe de l'utilisateur connectÃ©
+ */
+export async function changeUserPassword(
+  payload: ChangePasswordPayload
+): Promise<ApiResponse<null>> {
+  const response = await api.post<ApiResponse<null>>(
+    '/auth/change-password',
+    payload
   )
 
   return response.data
@@ -2891,6 +2386,16 @@ export async function fetchPublications(): Promise<
   return response.data
 }
 
+export async function fetchPublication(
+  id: number
+): Promise<ApiResponse<{ publication: Publication }>> {
+  const response = await api.get<
+    ApiResponse<{ publication: Publication }>
+  >(`/publications/${id}`)
+
+  return response.data
+}
+
 export async function createPublication(
   title: string,
   description: string,
@@ -2931,14 +2436,14 @@ export async function updatePublication(
     formData.append('image', file)
   }
 
+  // On envoie une vraie requÃƒÂªte POST vers /publications/{id}/update plutÃƒÂ´t
+  // qu'un PUT multipart (PHP ne remplit pas correctement $_FILES pour les
+  // requÃƒÂªtes PUT en multipart/form-data).
   const response = await api.post<
     ApiResponse<{ publication: Publication }>
-  >(`/publications/${id}`, formData, {
+  >(`/publications/${id}/update`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
-    },
-    params: {
-      _method: 'PUT'
     }
   })
 
@@ -3179,24 +2684,35 @@ C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
     <main
       class="mx-auto max-w-7xl px-6 py-16 lg:px-8"
     >
-      <div class="mb-10">
-        <p
-          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
-        >
-          Animals
-        </p>
+      <div class="mb-10 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p
+            class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+          >
+            Animals
+          </p>
 
-        <h1
-          class="mt-3 text-4xl font-bold text-black"
-        >
-          Discover animals
-        </h1>
+          <h1
+            class="mt-3 text-4xl font-bold text-black"
+          >
+            Discover animals
+          </h1>
 
-        <p
-          class="mt-4 max-w-2xl text-slate-600"
+          <p
+            class="mt-4 max-w-2xl text-slate-600"
+          >
+            Explore the animals available in our database, ainsi que les
+            annonces publiÃ©es par la communautÃ©.
+          </p>
+        </div>
+
+        <router-link
+          v-if="auth.isAuthenticated"
+          to="/dashboard"
+          class="rounded-full bg-brand-blue px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
         >
-          Explore the animals available in our database.
-        </p>
+          + Publier une annonce
+        </router-link>
       </div>
 
       <div
@@ -3214,21 +2730,31 @@ C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
       </div>
 
       <div
-        v-else-if="animals.length"
+        v-else-if="items.length"
         class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       >
-        <AnimalCard
-          v-for="animal in animals"
-          :key="animal.id"
-          :animal="animal"
-        />
+        <template
+          v-for="item in items"
+          :key="`${item.type}-${item.data.id}`"
+        >
+          <AnimalCard
+            v-if="item.type === 'animal'"
+            :animal="item.data"
+          />
+
+          <PublicationAdCard
+            v-else
+            :publication="item.data"
+            @deleted="handlePublicationDeleted"
+          />
+        </template>
       </div>
 
       <div
         v-else
         class="rounded-3xl bg-white p-12 text-center text-slate-500"
       >
-        Aucun animal disponible.
+        Aucun animal ni annonce disponible pour le moment.
       </div>
     </main>
 
@@ -3237,33 +2763,61 @@ C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
 import AnimalCard from '../components/animals/AnimalCard.vue'
+import PublicationAdCard from '../components/dashboard/PublicationCard.vue'
+
+import { useAuthStore } from '../stores/auth'
 
 import {
   fetchAnimals
 } from '../services/animalService'
 
-import type { Animal } from '../types'
+import {
+  fetchPublications
+} from '../services/publicationService'
+
+import type { Animal, Publication } from '../types'
+
+const auth = useAuthStore()
 
 const animals = ref<Animal[]>([])
+const publications = ref<Publication[]>([])
+
 const loading = ref(true)
 const error = ref('')
 
-async function loadAnimals() {
-  loading.value = true
-  error.value = ''
+/*
+ * Les animaux "officiels" de la base et les annonces publiÃ©es par les
+ * utilisateurs sont fusionnÃ©s dans une seule liste affichÃ©e dans la
+ * mÃªme grille : les annonces les plus rÃ©centes en premier, suivies
+ * des animaux existants.
+ */
+const items = computed(() => {
+  const publicationItems = publications.value.map(
+    (publication) => ({
+      type: 'publication' as const,
+      data: publication
+    })
+  )
 
+  const animalItems = animals.value.map((animal) => ({
+    type: 'animal' as const,
+    data: animal
+  }))
+
+  return [...publicationItems, ...animalItems]
+})
+
+async function loadAnimals() {
   try {
-    const response =
-      await fetchAnimals()
+    const response = await fetchAnimals()
 
     if (response.success) {
-      animals.value =
-        response.data?.animals ?? []
+      animals.value = response.data?.animals ?? []
     } else {
       error.value =
         response.message ||
@@ -3274,13 +2828,45 @@ async function loadAnimals() {
 
     error.value =
       'Impossible de contacter le serveur.'
-  } finally {
-    loading.value = false
   }
 }
 
+async function loadPublications() {
+  try {
+    const response = await fetchPublications()
+
+    if (response.success) {
+      publications.value =
+        response.data?.publications ?? []
+    }
+  } catch (err) {
+    console.error(
+      'Erreur chargement des annonces :',
+      err
+    )
+  }
+}
+
+function handlePublicationDeleted(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
+  )
+}
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+
+  await Promise.all([
+    loadAnimals(),
+    loadPublications()
+  ])
+
+  loading.value = false
+}
+
 onMounted(() => {
-  loadAnimals()
+  loadAll()
 })
 </script>
 
@@ -3424,15 +3010,62 @@ C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
           </div>
         </div>
 
+        <!-- =================================================
+             PUBLIER / MODIFIER UNE ANNONCE
+        ================================================== -->
+
+        <section
+          ref="formSection"
+          class="scroll-mt-24 mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
+          <div class="mb-6 flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue"
+            >
+              <Pencil v-if="editingPublication" class="h-5 w-5" />
+              <PlusCircle v-else class="h-5 w-5" />
+            </div>
+
+            <div>
+              <h2 class="font-semibold text-black">
+                {{
+                  editingPublication
+                    ? 'Modifier la publication'
+                    : 'Publier une nouvelle annonce'
+                }}
+              </h2>
+
+              <p class="text-sm text-slate-500">
+                {{
+                  editingPublication
+                    ? 'Modifiez les informations de votre annonce.'
+                    : 'Ajoutez un animal Ã  adopter ou Ã  vendre.'
+                }}
+              </p>
+            </div>
+          </div>
+
+          <PublicationForm
+            :publication="editingPublication"
+            @published="handlePublished"
+            @updated="handleUpdated"
+            @cancel="cancelEdit"
+          />
+        </section>
+
+        <!-- =================================================
+             MES PUBLICATIONS
+        ================================================== -->
+
         <section class="mt-10">
           <div class="mb-6 flex items-center justify-between">
             <div>
               <h2 class="text-2xl font-bold text-black">
-                Recent publications
+                Mes publications
               </h2>
 
               <p class="mt-1 text-sm text-slate-500">
-                Your latest publications.
+                GÃ©rez les annonces que vous avez publiÃ©es.
               </p>
             </div>
           </div>
@@ -3445,6 +3078,8 @@ C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
               v-for="publication in publications"
               :key="publication.id"
               :publication="publication"
+              @edit="editPublication"
+              @delete="removePublication"
             />
           </div>
 
@@ -3452,7 +3087,7 @@ C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
             v-else
             class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"
           >
-            Aucune publication disponible.
+            Vous n'avez pas encore publiÃ© d'annonce.
           </div>
         </section>
       </template>
@@ -3463,23 +3098,38 @@ C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { PlusCircle, Pencil } from 'lucide-vue-next'
 
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
 import PublicationCard from '../components/dashboard/PublicationCard.vue'
+import PublicationForm from '../components/dashboard/PublicationForm.vue'
 
 import { useAuthStore } from '../stores/auth'
-import { fetchPublications } from '../services/publicationService'
+import {
+  fetchPublications,
+  deletePublication as deletePublicationRequest
+} from '../services/publicationService'
 
 import type { Publication } from '../types'
 
 const auth = useAuthStore()
+const route = useRoute()
 
 const publications = ref<Publication[]>([])
 const loading = ref(true)
 const favoritesCount = ref(0)
 
+const editingPublication = ref<Publication | null>(null)
+const formSection = ref<HTMLElement | null>(null)
+
+/*
+ * L'API /publications renvoie les annonces de TOUS les utilisateurs
+ * (elles sont publiques sur la page "Animaux"). Ici, on ne garde que
+ * celles de l'utilisateur connectÃ© pour la gestion personnelle.
+ */
 async function loadDashboard(): Promise<void> {
   loading.value = true
 
@@ -3487,7 +3137,7 @@ async function loadDashboard(): Promise<void> {
     const response = await fetchPublications()
 
     if (response.success) {
-      publications.value = (
+      const allPublications = (
         response.data?.publications ?? []
       ).map((publication) => ({
         ...publication,
@@ -3496,6 +3146,14 @@ async function loadDashboard(): Promise<void> {
         image_url:
           publication.image_url ?? undefined
       }))
+
+      publications.value = auth.user
+        ? allPublications.filter(
+            (publication) =>
+              Number(publication.user_id) ===
+              Number(auth.user!.id)
+          )
+        : []
     }
   } catch (error) {
     console.error(
@@ -3507,12 +3165,87 @@ async function loadDashboard(): Promise<void> {
   }
 }
 
+async function editPublication(publication: Publication) {
+  editingPublication.value = { ...publication }
+
+  await nextTick()
+
+  formSection.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+}
+
+function cancelEdit() {
+  editingPublication.value = null
+}
+
+async function handlePublished() {
+  editingPublication.value = null
+  await loadDashboard()
+}
+
+async function handleUpdated() {
+  editingPublication.value = null
+  await loadDashboard()
+}
+
+async function removePublication(id: number) {
+  const confirmed = window.confirm(
+    'Voulez-vous vraiment supprimer cette publication ?'
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    const response = await deletePublicationRequest(id)
+
+    if (!response.success) {
+      window.alert(
+        response.message ||
+        'Impossible de supprimer la publication.'
+      )
+
+      return
+    }
+
+    publications.value = publications.value.filter(
+      (publication) => publication.id !== id
+    )
+  } catch (error) {
+    console.error('Erreur suppression :', error)
+
+    window.alert(
+      'Une erreur est survenue lors de la suppression.'
+    )
+  }
+}
+
 onMounted(async () => {
   if (!auth.user) {
     await auth.hydrate()
   }
 
   await loadDashboard()
+
+  /*
+   * Si on arrive depuis la page "Animaux" via le bouton "Modifier"
+   * (lien /dashboard?edit=ID), on ouvre directement le formulaire
+   * prÃ©-rempli avec cette annonce.
+   */
+  const editId = route.query.edit
+
+  if (editId) {
+    const publicationToEdit = publications.value.find(
+      (publication) => String(publication.id) === String(editId)
+    )
+
+    if (publicationToEdit) {
+      await editPublication(publicationToEdit)
+    }
+  }
 })
 </script>
 
@@ -3545,7 +3278,7 @@ import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
 import LoadingSpinner from '../components/common/LoadingSpinner.vue'
 import AnimalCard from '../components/animals/AnimalCard.vue'
-import { fetchFavorites } from '../services/authService'
+import { fetchFavorites } from '../services/favoriteService'
 import type { Animal } from '../types'
 
 const favorites = ref<Animal[]>([])
@@ -3731,10 +3464,10 @@ async function submitLogin() {
   loading.value = true
 
   try {
-    const response = await loginUser(
-      email.value,
-      password.value
-    )
+    const response = await loginUser({
+      email: email.value,
+      password: password.value
+    })
 
     if (
       response.success &&

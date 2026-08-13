@@ -23,8 +23,15 @@ import {
 import { useAuthStore } from '../../stores/auth'
 import { logoutUser } from '../../services/authService'
 
+import {
+  fetchPublications,
+  deletePublication as deletePublicationRequest
+} from '../../services/publicationService'
+
 import PublicationForm from './PublicationForm.vue'
 import PublicationCard from './PublicationCard.vue'
+
+import type { Publication } from '../../types'
 
 
 /*
@@ -39,11 +46,11 @@ const auth = useAuthStore()
 
 /*
 |--------------------------------------------------------------------------
-| État
+| Ã‰tat
 |--------------------------------------------------------------------------
 */
 
-const publications = ref<any[]>([])
+const publications = ref<Publication[]>([])
 
 const loading = ref(true)
 
@@ -58,12 +65,12 @@ const menuOpen = ref(false)
 |--------------------------------------------------------------------------
 */
 
-const editingPublication = ref<any | null>(null)
+const editingPublication = ref<Publication | null>(null)
 
 
 /*
 |--------------------------------------------------------------------------
-| Référence du formulaire
+| RÃ©fÃ©rence du formulaire
 |--------------------------------------------------------------------------
 */
 
@@ -75,6 +82,12 @@ const formSection =
 |--------------------------------------------------------------------------
 | Charger les publications
 |--------------------------------------------------------------------------
+|
+| IMPORTANT :
+| L'API /publications renvoie les annonces de TOUS les utilisateurs
+| (elles doivent Ãªtre publiques cÃ´tÃ© page "Animaux"). Ici, dans le
+| tableau de bord, on ne garde que celles de l'utilisateur connectÃ©.
+|
 */
 
 async function loadPublications() {
@@ -85,36 +98,28 @@ async function loadPublications() {
 
   try {
 
-    const response = await fetch(
-      '/api/publications',
-      {
-        method: 'GET',
+    const response = await fetchPublications()
 
-        credentials: 'include',
-
-        headers: {
-          Accept: 'application/json'
-        }
-      }
-    )
-
-    const data =
-      await response.json()
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       error.value =
-        data.message ||
+        response.message ||
         'Impossible de charger les publications.'
 
       return
+
     }
 
-    publications.value =
-      data.data?.publications || []
+    const allPublications =
+      response.data?.publications || []
+
+    publications.value = auth.user
+      ? allPublications.filter(
+          publication =>
+            Number(publication.user_id) ===
+            Number(auth.user!.id)
+        )
+      : []
 
   } catch (err) {
 
@@ -141,40 +146,18 @@ async function loadPublications() {
 */
 
 async function editPublication(
-  publication: any
+  publication: Publication
 ) {
 
-  console.log(
-    'Publication reçue par Dashboard :',
-    publication
-  )
-
-
-  /*
-   * Créer une copie.
-   */
-
   editingPublication.value = {
-    ...publication,
-
-    images: publication.images
-      ? [...publication.images]
-      : []
+    ...publication
   }
 
-
-  console.log(
-    'Publication en édition :',
-    editingPublication.value
-  )
-
-
   /*
-   * Attendre la mise à jour de Vue.
+   * Attendre la mise Ã  jour de Vue.
    */
 
   await nextTick()
-
 
   /*
    * Aller vers le formulaire.
@@ -203,7 +186,7 @@ function cancelEdit() {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLICATION CRÉÉE
+| PUBLICATION CRÃ‰Ã‰E
 |--------------------------------------------------------------------------
 */
 
@@ -218,18 +201,11 @@ async function handlePublished() {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLICATION MODIFIÉE
+| PUBLICATION MODIFIÃ‰E
 |--------------------------------------------------------------------------
 */
 
-async function handleUpdated(
-  data: any
-) {
-
-  console.log(
-    'Publication modifiée :',
-    data
-  )
+async function handleUpdated() {
 
   editingPublication.value = null
 
@@ -257,48 +233,27 @@ async function deletePublication(
     return
   }
 
-
   try {
 
     const response =
-      await fetch(
-        `/api/publications/${id}`,
-        {
-          method: 'DELETE',
+      await deletePublicationRequest(id)
 
-          credentials: 'include',
-
-          headers: {
-            Accept: 'application/json'
-          }
-        }
-      )
-
-
-    const data =
-      await response.json()
-
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       window.alert(
-        data.message ||
+        response.message ||
         'Impossible de supprimer la publication.'
       )
 
       return
-    }
 
+    }
 
     publications.value =
       publications.value.filter(
         publication =>
           publication.id !== id
       )
-
 
   } catch (err) {
 
@@ -318,7 +273,7 @@ async function deletePublication(
 
 /*
 |--------------------------------------------------------------------------
-| DÉCONNEXION
+| DÃ‰CONNEXION
 |--------------------------------------------------------------------------
 */
 
@@ -331,7 +286,7 @@ async function logout() {
   } catch (err) {
 
     console.error(
-      'Erreur déconnexion :',
+      'Erreur dÃ©connexion :',
       err
     )
 
@@ -473,7 +428,7 @@ onMounted(
 
             <LogOut class="h-4 w-4" />
 
-            Déconnexion
+            DÃ©connexion
 
           </button>
 
@@ -558,7 +513,7 @@ onMounted(
 
           <LogOut class="h-5 w-5" />
 
-          Déconnexion
+          DÃ©connexion
 
         </button>
 
@@ -643,7 +598,7 @@ onMounted(
 
             <LogOut class="h-5 w-5" />
 
-            Déconnexion
+            DÃ©connexion
 
           </button>
 
@@ -678,7 +633,7 @@ onMounted(
           </h1>
 
           <p class="mt-2 text-slate-600">
-            Gérez vos publications et ajoutez vos animaux.
+            GÃ©rez vos publications et ajoutez vos animaux.
           </p>
 
         </div>
@@ -823,7 +778,7 @@ onMounted(
               class="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white"
               @click="loadPublications"
             >
-              Réessayer
+              RÃ©essayer
             </button>
 
           </div>
@@ -857,7 +812,7 @@ onMounted(
             <p
               class="mt-2 text-sm text-slate-500"
             >
-              Vous n'avez pas encore créé de publication.
+              Vous n'avez pas encore crÃ©Ã© de publication.
             </p>
 
           </div>

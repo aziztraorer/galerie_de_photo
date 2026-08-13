@@ -14,24 +14,14 @@ import {
   Pencil
 } from 'lucide-vue-next'
 
+import {
+  createPublication,
+  updatePublication
+} from '../../services/publicationService'
 
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
+import { getImageUrl } from '../../services/imageService'
 
-interface PublicationImage {
-  id: number
-  image_url: string
-}
-
-interface Publication {
-  id: number
-  title: string
-  description?: string
-  images?: PublicationImage[]
-}
+import type { Publication } from '../../types'
 
 
 /*
@@ -67,8 +57,8 @@ const emit = defineEmits<{
 const title = ref('')
 const description = ref('')
 
-const files = ref<File[]>([])
-const previews = ref<string[]>([])
+const file = ref<File | null>(null)
+const preview = ref<string>('')
 
 const loading = ref(false)
 
@@ -81,7 +71,7 @@ const fileInput =
 
 /*
 |--------------------------------------------------------------------------
-| Mode édition
+| Mode Ã©dition
 |--------------------------------------------------------------------------
 */
 
@@ -92,59 +82,17 @@ const isEditing = computed(() => {
 
 /*
 |--------------------------------------------------------------------------
-| URL API
-|--------------------------------------------------------------------------
-|
-| IMPORTANT :
-| On utilise la même origine API partout.
-|
+| Nettoyer la preview blob
 |--------------------------------------------------------------------------
 */
 
-const API_URL =
-  'http://localhost/cours/backend/public'
+function clearBlobPreview() {
 
+  if (preview.value.startsWith('blob:')) {
 
-/*
-|--------------------------------------------------------------------------
-| Construire URL image
-|--------------------------------------------------------------------------
-*/
+    URL.revokeObjectURL(preview.value)
 
-function getImageUrl(path: string): string {
-
-  if (!path) {
-    return ''
   }
-
-  if (
-    path.startsWith('http://') ||
-    path.startsWith('https://')
-  ) {
-    return path
-  }
-
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| Nettoyer les previews blob
-|--------------------------------------------------------------------------
-*/
-
-function clearBlobPreviews() {
-
-  previews.value.forEach(url => {
-
-    if (url.startsWith('blob:')) {
-
-      URL.revokeObjectURL(url)
-
-    }
-
-  })
 
 }
 
@@ -157,77 +105,23 @@ function clearBlobPreviews() {
 
 function loadPublication() {
 
-  /*
-   * Nettoyer uniquement les anciennes
-   * previews locales.
-   */
-
-  previews.value.forEach(url => {
-
-    if (url.startsWith('blob:')) {
-
-      URL.revokeObjectURL(url)
-
-    }
-
-  })
-
-
-  /*
-   * Titre
-   */
+  clearBlobPreview()
 
   title.value =
     props.publication?.title || ''
 
-
-  /*
-   * Description
-   */
-
   description.value =
     props.publication?.description || ''
 
+  preview.value =
+    props.publication?.image_url
+      ? getImageUrl(props.publication.image_url)
+      : ''
 
-  /*
-   * Images existantes
-   */
-
-  if (
-    props.publication?.images &&
-    props.publication.images.length > 0
-  ) {
-
-    previews.value =
-      props.publication.images.map(image =>
-        getImageUrl(image.image_url)
-      )
-
-  } else {
-
-    previews.value = []
-
-  }
-
-
-  /*
-   * Nouvelles images
-   */
-
-  files.value = []
-
-
-  /*
-   * Messages
-   */
+  file.value = null
 
   message.value = ''
   success.value = false
-
-
-  /*
-   * Reset input file
-   */
 
   if (fileInput.value) {
 
@@ -259,157 +153,45 @@ watch(
 
 /*
 |--------------------------------------------------------------------------
-| Sélection des images
+| SÃ©lection de l'image
 |--------------------------------------------------------------------------
 */
 
-function selectFiles(event: Event) {
+function selectFile(event: Event) {
 
   const input =
     event.target as HTMLInputElement
 
+  const selectedFile =
+    input.files && input.files.length > 0
+      ? input.files[0]
+      : null
 
-  const selectedFiles =
-    Array.from(input.files || [])
+  message.value = ''
 
+  clearBlobPreview()
 
-  /*
-   * Maximum 4 nouvelles images.
-   */
+  file.value = selectedFile
 
-  if (selectedFiles.length > 4) {
-
-    message.value =
-      'Vous pouvez sélectionner maximum 4 images.'
-
-    success.value = false
-
-  } else {
-
-    message.value = ''
-
-  }
-
-
-  /*
-   * Garder maximum 4 fichiers.
-   */
-
-  files.value =
-    selectedFiles.slice(0, 4)
-
-
-  /*
-   * Supprimer les anciennes previews blob.
-   */
-
-  previews.value =
-    previews.value.filter(preview => {
-
-      if (preview.startsWith('blob:')) {
-
-        URL.revokeObjectURL(preview)
-
-        return false
-
-      }
-
-      return true
-
-    })
-
-
-  /*
-   * Créer previews.
-   */
-
-  const newPreviews =
-    files.value.map(file =>
-      URL.createObjectURL(file)
-    )
-
-
-  /*
-   * Anciennes images serveur
-   * + nouvelles images locales
-   */
-
-  previews.value = [
-    ...previews.value,
-    ...newPreviews
-  ]
+  preview.value = selectedFile
+    ? URL.createObjectURL(selectedFile)
+    : ''
 
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| Supprimer une image
+| Supprimer l'image sÃ©lectionnÃ©e
 |--------------------------------------------------------------------------
 */
 
-function removeImage(index: number) {
+function removeImage() {
 
-  const preview =
-    previews.value[index]
+  clearBlobPreview()
 
-
-  /*
-   * Si image locale.
-   */
-
-  if (
-    preview &&
-    preview.startsWith('blob:')
-  ) {
-
-    URL.revokeObjectURL(preview)
-
-
-    /*
-     * Trouver l'index du fichier
-     * correspondant.
-     */
-
-    const blobIndexes =
-      previews.value
-        .map((url, i) =>
-          url.startsWith('blob:')
-            ? i
-            : -1
-        )
-        .filter(i => i !== -1)
-
-
-    const fileIndex =
-      blobIndexes.indexOf(index)
-
-
-    if (fileIndex !== -1) {
-
-      files.value.splice(
-        fileIndex,
-        1
-      )
-
-    }
-
-  }
-
-
-  /*
-   * Supprimer preview.
-   */
-
-  previews.value.splice(
-    index,
-    1
-  )
-
-
-  /*
-   * Reset input.
-   */
+  file.value = null
+  preview.value = ''
 
   if (fileInput.value) {
 
@@ -428,7 +210,7 @@ function removeImage(index: number) {
 
 function cancelEdit() {
 
-  clearBlobPreviews()
+  clearBlobPreview()
 
   emit('cancel')
 
@@ -446,11 +228,6 @@ async function publish() {
   message.value = ''
   success.value = false
 
-
-  /*
-   * Vérification titre.
-   */
-
   if (!title.value.trim()) {
 
     message.value =
@@ -460,194 +237,51 @@ async function publish() {
 
   }
 
-
   /*
-   * Pour une nouvelle publication :
-   * image obligatoire.
+   * Pour une nouvelle publication : image obligatoire.
    */
 
   if (
     !isEditing.value &&
-    files.value.length === 0
+    !file.value
   ) {
 
     message.value =
-      'Veuillez sélectionner au moins une image.'
+      'Veuillez sÃ©lectionner une image.'
 
     return
 
   }
 
-
-  /*
-   * FormData
-   */
-
-  const formData =
-    new FormData()
-
-
-  formData.append(
-    'title',
-    title.value.trim()
-  )
-
-
-  formData.append(
-    'description',
-    description.value.trim()
-  )
-
-
-  /*
-   * Nouvelles images.
-   */
-
-  files.value.forEach(file => {
-
-    formData.append(
-      'images[]',
-      file
-    )
-
-  })
-
-
-  /*
-   * URL et méthode.
-   */
-
-  let url =
-    `${API_URL}/api/publications`
-
-
-  let method =
-    'POST'
-
-
-  /*
-   |--------------------------------------------------------------------------
-   | MODIFICATION
-   |--------------------------------------------------------------------------
-   |
-   | IMPORTANT :
-   | On utilise maintenant :
-   |
-   | POST /api/publications/{id}/update
-   |
-   | au lieu de :
-   |
-   | POST /api/publications/{id}
-   |
-   | avec _method=PUT.
-   |
-   */
-
-  if (
-    isEditing.value &&
-    props.publication
-  ) {
-
-    url =
-      `${API_URL}/api/publications/${props.publication.id}/update`
-
-    method =
-      'POST'
-
-  }
-
-
-  /*
-   * Debug.
-   */
-
-  console.log(
-    'Requête publication :',
-    {
-      url,
-      method,
-      publicationId:
-        props.publication?.id,
-      isEditing:
-        isEditing.value
-    }
-  )
-
-
   loading.value = true
-
 
   try {
 
-    const response =
-      await fetch(
-        url,
-        {
-          method,
+    let response
 
-          credentials: 'include',
+    if (isEditing.value && props.publication) {
 
-          body: formData
-        }
+      response = await updatePublication(
+        props.publication.id,
+        title.value.trim(),
+        description.value.trim(),
+        file.value
       )
 
+    } else {
 
-    /*
-     * Récupérer le contenu avant JSON.
-     *
-     * Cela évite :
-     *
-     * Unexpected token '<'
-     *
-     * lorsque PHP renvoie une erreur HTML.
-     */
-
-    const responseText =
-      await response.text()
-
-
-    console.log(
-      'Réponse serveur :',
-      responseText
-    )
-
-
-    let data: any
-
-
-    try {
-
-      data =
-        JSON.parse(responseText)
-
-    } catch (jsonError) {
-
-      console.error(
-        'Réponse serveur non JSON :',
-        responseText
+      response = await createPublication(
+        title.value.trim(),
+        description.value.trim(),
+        file.value
       )
-
-      message.value =
-        `Le serveur a retourné une réponse invalide (${response.status}).`
-
-      success.value = false
-
-      return
 
     }
 
-
-    /*
-     * Vérifier réponse HTTP.
-     */
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
+    if (!response.success) {
 
       message.value =
-        data.message ||
+        response.message ||
         'Une erreur est survenue.'
 
       success.value = false
@@ -656,41 +290,22 @@ async function publish() {
 
     }
 
-
-    /*
-     |--------------------------------------------------------------------------
-     | CRÉATION
-     |--------------------------------------------------------------------------
-     */
-
     if (!isEditing.value) {
 
       success.value = true
 
       message.value =
-        'Publication créée avec succès.'
+        'Publication crÃ©Ã©e avec succÃ¨s.'
 
-
-      emit(
-        'published',
-        data
-      )
-
-
-      /*
-       * Reset formulaire.
-       */
+      emit('published', response)
 
       title.value = ''
-
       description.value = ''
 
-      clearBlobPreviews()
+      clearBlobPreview()
 
-      files.value = []
-
-      previews.value = []
-
+      file.value = null
+      preview.value = ''
 
       if (fileInput.value) {
 
@@ -698,30 +313,16 @@ async function publish() {
 
       }
 
-    }
-
-
-    /*
-     |--------------------------------------------------------------------------
-     | MODIFICATION
-     |--------------------------------------------------------------------------
-     */
-
-    else {
+    } else {
 
       success.value = true
 
       message.value =
-        'Publication modifiée avec succès.'
+        'Publication modifiÃ©e avec succÃ¨s.'
 
-
-      emit(
-        'updated',
-        data
-      )
+      emit('updated', response)
 
     }
-
 
   } catch (error) {
 
@@ -730,12 +331,10 @@ async function publish() {
       error
     )
 
-
     message.value =
       'Impossible de contacter le serveur.'
 
     success.value = false
-
 
   } finally {
 
@@ -754,7 +353,7 @@ async function publish() {
 
 onBeforeUnmount(() => {
 
-  clearBlobPreviews()
+  clearBlobPreview()
 
 })
 
@@ -781,12 +380,11 @@ onBeforeUnmount(() => {
         Titre de l'annonce
       </label>
 
-
       <input
         id="publication-title"
         v-model="title"
         type="text"
-        placeholder="Ex : Chien disponible à Abidjan"
+        placeholder="Ex : Chien disponible Ã  Abidjan"
         class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
       />
 
@@ -806,12 +404,11 @@ onBeforeUnmount(() => {
         Description
       </label>
 
-
       <textarea
         id="publication-description"
         v-model="description"
         rows="5"
-        placeholder="Décrivez votre animal..."
+        placeholder="DÃ©crivez votre animal..."
         class="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
       ></textarea>
 
@@ -819,84 +416,60 @@ onBeforeUnmount(() => {
 
 
     <!-- =====================================================
-         IMAGES
+         IMAGE
     ====================================================== -->
 
     <div>
 
       <label
-        for="publication-images"
+        for="publication-image"
         class="mb-2 block text-sm font-medium text-slate-700"
       >
-        Images
+        Image
       </label>
 
-
       <label
-        for="publication-images"
+        v-if="!preview"
+        for="publication-image"
         class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-brand-blue hover:bg-blue-50"
       >
 
-        <ImagePlus
-          class="h-10 w-10 text-slate-400"
-        />
+        <ImagePlus class="h-10 w-10 text-slate-400" />
 
-
-        <p
-          class="mt-3 text-sm font-medium text-slate-700"
-        >
-          Ajouter des images
+        <p class="mt-3 text-sm font-medium text-slate-700">
+          Ajouter une image
         </p>
 
-
-        <p
-          class="mt-1 text-xs text-slate-500"
-        >
-          JPG, PNG ou WEBP — maximum 4 images
+        <p class="mt-1 text-xs text-slate-500">
+          JPG, PNG ou WEBP â€” 5 Mo maximum
         </p>
 
       </label>
 
-
       <input
-        id="publication-images"
+        id="publication-image"
         ref="fileInput"
         type="file"
-        multiple
         accept="image/jpeg,image/png,image/webp"
         class="hidden"
-        @change="selectFiles"
+        @change="selectFile"
       />
 
-    </div>
-
-
-    <!-- =====================================================
-         PREVISUALISATION
-    ====================================================== -->
-
-    <div
-      v-if="previews.length"
-      class="grid grid-cols-2 gap-4 sm:grid-cols-4"
-    >
-
       <div
-        v-for="(preview, index) in previews"
-        :key="`${preview}-${index}`"
-        class="group relative aspect-square overflow-hidden rounded-2xl border border-slate-200"
+        v-if="preview"
+        class="group relative mt-2 aspect-video w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200"
       >
 
         <img
           :src="preview"
-          :alt="`Image ${index + 1}`"
+          alt="AperÃ§u de l'image"
           class="h-full w-full object-cover"
         />
-
 
         <button
           type="button"
           class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
-          @click="removeImage(index)"
+          @click="removeImage"
         >
 
           <X class="h-4 w-4" />
@@ -930,9 +503,7 @@ onBeforeUnmount(() => {
          BOUTONS
     ====================================================== -->
 
-    <div
-      class="flex flex-col gap-3 sm:flex-row"
-    >
+    <div class="flex flex-col gap-3 sm:flex-row">
 
       <button
         type="submit"
@@ -940,27 +511,18 @@ onBeforeUnmount(() => {
         class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
 
-        <Pencil
-          v-if="isEditing"
-          class="h-5 w-5"
-        />
-
-        <Send
-          v-else
-          class="h-5 w-5"
-        />
-
+        <Pencil v-if="isEditing" class="h-5 w-5" />
+        <Send v-else class="h-5 w-5" />
 
         {{
           loading
             ? 'Enregistrement...'
             : isEditing
               ? 'Modifier la publication'
-              : 'Publier l’annonce'
+              : "Publier l'annonce"
         }}
 
       </button>
-
 
       <button
         v-if="isEditing"
@@ -968,9 +530,7 @@ onBeforeUnmount(() => {
         class="rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
         @click="cancelEdit"
       >
-
         Annuler
-
       </button>
 
     </div>

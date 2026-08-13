@@ -1233,7 +1233,7 @@ namespace App\Repositories;
 use App\Database\Database;
 use PDO;
 
-class PublicationRepository
+class AnimalRepository
 {
     private PDO $pdo;
 
@@ -1246,29 +1246,33 @@ class PublicationRepository
     {
         $stmt = $this->pdo->query(
             'SELECT
-                p.*,
-                u.name AS user_name,
-                u.email AS user_email
-             FROM publications p
-             INNER JOIN users u
-                ON u.id = p.user_id
-             ORDER BY p.id DESC'
+                a.*,
+                c.name AS category_name,
+                c.description AS category_description,
+                c.icon AS category_icon
+             FROM animals a
+             LEFT JOIN categories c
+                ON c.id = a.category_id
+             ORDER BY a.name ASC'
         );
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map([$this, 'mapRow'], $rows);
     }
 
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare(
             'SELECT
-                p.*,
-                u.name AS user_name,
-                u.email AS user_email
-             FROM publications p
-             INNER JOIN users u
-                ON u.id = p.user_id
-             WHERE p.id = :id
+                a.*,
+                c.name AS category_name,
+                c.description AS category_description,
+                c.icon AS category_icon
+             FROM animals a
+             LEFT JOIN categories c
+                ON c.id = a.category_id
+             WHERE a.id = :id
              LIMIT 1'
         );
 
@@ -1276,88 +1280,34 @@ class PublicationRepository
             'id' => $id
         ]);
 
-        $publication = $stmt->fetch(PDO::FETCH_ASSOC);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $publication ?: null;
+        return $row ? $this->mapRow($row) : null;
     }
 
-    public function create(
-        int $userId,
-        string $title,
-        string $description,
-        ?string $image
-    ): array {
-
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO publications
-                (user_id, title, description, image_url)
-             VALUES
-                (:user_id, :title, :description, :image_url)'
-        );
-
-        $stmt->execute([
-            'user_id' => $userId,
-            'title' => $title,
-            'description' => $description,
-            'image_url' => $image
-        ]);
-
-        return $this->findById(
-            (int) $this->pdo->lastInsertId()
-        );
-    }
-
-    public function update(
-        int $id,
-        string $title,
-        string $description,
-        ?string $image = null
-    ): bool {
-
-        if ($image !== null) {
-
-            $stmt = $this->pdo->prepare(
-                'UPDATE publications
-                 SET
-                    title = :title,
-                    description = :description,
-                    image_url = :image_url
-                 WHERE id = :id'
-            );
-
-            return $stmt->execute([
-                'title' => $title,
-                'description' => $description,
-                'image_url' => $image,
-                'id' => $id
-            ]);
-        }
-
-        $stmt = $this->pdo->prepare(
-            'UPDATE publications
-             SET
-                title = :title,
-                description = :description
-             WHERE id = :id'
-        );
-
-        return $stmt->execute([
-            'title' => $title,
-            'description' => $description,
-            'id' => $id
-        ]);
-    }
-
-    public function delete(int $id): bool
+    private function mapRow(array $row): array
     {
-        $stmt = $this->pdo->prepare(
-            'DELETE FROM publications
-             WHERE id = :id'
-        );
-
-        return $stmt->execute([
-            'id' => $id
-        ]);
+        return [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'scientific_name' => $row['scientific_name'] ?? null,
+            'short_description' => $row['short_description'] ?? null,
+            'description' => $row['description'] ?? null,
+            'diet' => $row['diet'] ?? null,
+            'habitat' => $row['habitat'] ?? null,
+            'characteristics' => $row['characteristics'] ?? null,
+            'lifespan' => $row['lifespan'] ?? null,
+            'image_url' => $row['image_url'] ?? null,
+            'category_id' => $row['category_id'] !== null ? (int) $row['category_id'] : null,
+            'category' => $row['category_id'] !== null ? [
+                'id' => (int) $row['category_id'],
+                'name' => $row['category_name'],
+                'description' => $row['category_description'],
+                'icon' => $row['category_icon'],
+            ] : null,
+            'created_at' => $row['created_at'] ?? null,
+            'updated_at' => $row['updated_at'] ?? null,
+        ];
     }
 }
 
@@ -1638,6 +1588,8 @@ C:\xampp\htdocs\cours\backend\src\Repositories\PublicationRepository.php
 ========================================
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repositories;
 
 use App\Database\Database;
@@ -1652,37 +1604,34 @@ class PublicationRepository
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-    public function create(
-        int $userId,
-        string $title,
-        string $description,
-        ?int $categoryId
-    ): array {
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO publications
-            (user_id, title, description, category_id)
-            VALUES
-            (:user_id, :title, :description, :category_id)'
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->query(
+            'SELECT
+                p.*,
+                u.name AS user_name,
+                u.email AS user_email
+             FROM publications p
+             INNER JOIN users u
+                ON u.id = p.user_id
+             ORDER BY p.id DESC'
         );
 
-        $stmt->execute([
-            'user_id' => $userId,
-            'title' => $title,
-            'description' => $description,
-            'category_id' => $categoryId
-        ]);
-
-        return $this->findById(
-            (int) $this->pdo->lastInsertId()
-        );
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function findById(int $id): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT *
-             FROM publications
-             WHERE id = :id'
+            'SELECT
+                p.*,
+                u.name AS user_name,
+                u.email AS user_email
+             FROM publications p
+             INNER JOIN users u
+                ON u.id = p.user_id
+             WHERE p.id = :id
+             LIMIT 1'
         );
 
         $stmt->execute([
@@ -1691,129 +1640,86 @@ class PublicationRepository
 
         $publication = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$publication) {
-            return null;
-        }
-
-        $publication['images'] = $this->getImages($id);
-
-        return $publication;
+        return $publication ?: null;
     }
 
-    public function listByUser(int $userId): array
-    {
+    public function create(
+        int $userId,
+        string $title,
+        string $description,
+        ?string $image
+    ): array {
+
         $stmt = $this->pdo->prepare(
-            'SELECT *
-             FROM publications
-             WHERE user_id = :user_id
-             ORDER BY created_at DESC'
+            'INSERT INTO publications
+                (user_id, title, description, image_url)
+             VALUES
+                (:user_id, :title, :description, :image_url)'
         );
 
         $stmt->execute([
-            'user_id' => $userId
+            'user_id' => $userId,
+            'title' => $title,
+            'description' => $description,
+            'image_url' => $image
         ]);
 
-        $publications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($publications as &$publication) {
-            $publication['images'] = $this->getImages(
-                (int) $publication['id']
-            );
-        }
-
-        return $publications;
+        return $this->findById(
+            (int) $this->pdo->lastInsertId()
+        );
     }
 
     public function update(
         int $id,
-        int $userId,
         string $title,
         string $description,
-        ?int $categoryId
-    ): ?array {
+        ?string $image = null
+    ): bool {
+
+        if ($image !== null) {
+
+            $stmt = $this->pdo->prepare(
+                'UPDATE publications
+                 SET
+                    title = :title,
+                    description = :description,
+                    image_url = :image_url
+                 WHERE id = :id'
+            );
+
+            return $stmt->execute([
+                'title' => $title,
+                'description' => $description,
+                'image_url' => $image,
+                'id' => $id
+            ]);
+        }
+
         $stmt = $this->pdo->prepare(
             'UPDATE publications
-             SET title = :title,
-                 description = :description,
-                 category_id = :category_id
-             WHERE id = :id
-             AND user_id = :user_id'
-        );
-
-        $stmt->execute([
-            'id' => $id,
-            'user_id' => $userId,
-            'title' => $title,
-            'description' => $description,
-            'category_id' => $categoryId
-        ]);
-
-        return $this->findById($id);
-    }
-
-    public function delete(
-        int $id,
-        int $userId
-    ): bool {
-        $stmt = $this->pdo->prepare(
-            'DELETE FROM publications
-             WHERE id = :id
-             AND user_id = :user_id'
-        );
-
-        $stmt->execute([
-            'id' => $id,
-            'user_id' => $userId
-        ]);
-
-        return $stmt->rowCount() > 0;
-    }
-
-    public function addImage(
-        int $publicationId,
-        string $imageUrl
-    ): array {
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO publication_images
-             (publication_id, image_url)
-             VALUES
-             (:publication_id, :image_url)'
-        );
-
-        $stmt->execute([
-            'publication_id' => $publicationId,
-            'image_url' => $imageUrl
-        ]);
-
-        $id = (int) $this->pdo->lastInsertId();
-
-        $stmt = $this->pdo->prepare(
-            'SELECT *
-             FROM publication_images
+             SET
+                title = :title,
+                description = :description
              WHERE id = :id'
         );
 
-        $stmt->execute([
+        return $stmt->execute([
+            'title' => $title,
+            'description' => $description,
             'id' => $id
         ]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function getImages(int $publicationId): array
+    public function delete(int $id): bool
     {
         $stmt = $this->pdo->prepare(
-            'SELECT *
-             FROM publication_images
-             WHERE publication_id = :publication_id
-             ORDER BY created_at ASC'
+            'DELETE FROM publications
+             WHERE id = :id'
         );
 
-        $stmt->execute([
-            'publication_id' => $publicationId
+        return $stmt->execute([
+            'id' => $id
         ]);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 
@@ -1951,41 +1857,59 @@ return function (App $app): void {
 
     $app->group('/api', function (RouteCollectorProxy $api): void {
 
-        $api->get('/animals', [AnimalController::class, 'index']);
+        $api->get('/animals', [AnimalController::class, 'list']);
         $api->get('/animals/{id:[0-9]+}', [AnimalController::class, 'show']);
 
-        $api->get('/categories', [CategoryController::class, 'index']);
+        $api->get('/categories', [CategoryController::class, 'list']);
         $api->get('/categories/{id:[0-9]+}', [CategoryController::class, 'show']);
+        $api->get('/categories/{id:[0-9]+}/animals', [CategoryController::class, 'animals']);
 
         $api->post('/auth/register', [AuthController::class, 'register']);
         $api->post('/auth/login', [AuthController::class, 'login']);
         $api->get('/auth/me', [AuthController::class, 'me']);
         $api->post('/auth/logout', [AuthController::class, 'logout']);
 
+        // Les annonces (publications) sont publiques en lecture : elles doivent
+        // s'afficher dans la partie "Animaux" Ã  cÃ´tÃ© des animaux dÃ©jÃ  existants,
+        // mÃªme pour un visiteur non connectÃ©.
+        $api->get('/publications', [PublicationController::class, 'list']);
+        $api->get('/publications/{id:[0-9]+}', [PublicationController::class, 'show']);
+
         $api->group('', function (RouteCollectorProxy $protected): void {
 
-            $protected->post('/favorites/{animalId:[0-9]+}', [FavoriteController::class, 'store']);
-            $protected->delete('/favorites/{animalId:[0-9]+}', [FavoriteController::class, 'destroy']);
-            $protected->get('/favorites', [FavoriteController::class, 'index']);
+            $protected->post('/auth/change-password', [AuthController::class, 'changePassword']);
 
-            $protected->get('/publications', [PublicationController::class, 'index']);
-            $protected->post('/publications', [PublicationController::class, 'store']);
+            $protected->get('/favorites', [FavoriteController::class, 'list']);
+            $protected->post('/favorites', [FavoriteController::class, 'add']);
+            $protected->delete('/favorites/{animal_id:[0-9]+}', [FavoriteController::class, 'remove']);
+
+            // CrÃ©ation, modification et suppression d'une annonce : rÃ©servÃ©es
+            // Ã  l'utilisateur connectÃ© (et propriÃ©taire de l'annonce pour
+            // modifier/supprimer, vÃ©rifiÃ© dans PublicationService).
+            $protected->post('/publications', [PublicationController::class, 'create']);
             $protected->put('/publications/{id:[0-9]+}', [PublicationController::class, 'update']);
-            $protected->delete('/publications/{id:[0-9]+}', [PublicationController::class, 'destroy']);
+            // Route POST Ã©quivalente, utilisÃ©e par le formulaire front (envoi de
+            // fichiers en multipart/form-data, non fiable en PUT natif en PHP).
+            $protected->post('/publications/{id:[0-9]+}/update', [PublicationController::class, 'update']);
+            $protected->delete('/publications/{id:[0-9]+}', [PublicationController::class, 'delete']);
 
         })->add(new AuthMiddleware());
 
-        $api->group('/admin', function (RouteCollectorProxy $admin): void {
-
-            $admin->post('/animals', [AnimalController::class, 'store']);
-            $admin->put('/animals/{id:[0-9]+}', [AnimalController::class, 'update']);
-            $admin->delete('/animals/{id:[0-9]+}', [AnimalController::class, 'destroy']);
-
-            $admin->post('/categories', [CategoryController::class, 'store']);
-            $admin->put('/categories/{id:[0-9]+}', [CategoryController::class, 'update']);
-            $admin->delete('/categories/{id:[0-9]+}', [CategoryController::class, 'destroy']);
-
-        })->add(new AdminMiddleware())->add(new AuthMiddleware());
+        // NOTE : ces routes d'administration n'ont pas de mÃƒÂ©thode correspondante
+        // dans AnimalController / CategoryController (pas de store/update/destroy,
+        // ni de service ou repository pour crÃƒÂ©er/modifier/supprimer). Elles sont
+        // dÃƒÂ©sactivÃƒÂ©es pour ÃƒÂ©viter une erreur fatale "Method not found".
+        // Dis-moi si tu veux que je construise ce CRUD admin (service + repository
+        // + contrÃƒÂ´leur), ce serait un ajout de fonctionnalitÃƒÂ©, pas une correction.
+        //
+        // $api->group('/admin', function (RouteCollectorProxy $admin): void {
+        //     $admin->post('/animals', [AnimalController::class, 'store']);
+        //     $admin->put('/animals/{id:[0-9]+}', [AnimalController::class, 'update']);
+        //     $admin->delete('/animals/{id:[0-9]+}', [AnimalController::class, 'destroy']);
+        //     $admin->post('/categories', [CategoryController::class, 'store']);
+        //     $admin->put('/categories/{id:[0-9]+}', [CategoryController::class, 'update']);
+        //     $admin->delete('/categories/{id:[0-9]+}', [CategoryController::class, 'destroy']);
+        // })->add(new AdminMiddleware())->add(new AuthMiddleware());
     });
 };
 
@@ -2670,9 +2594,19 @@ namespace App\Services;
 
 use App\Exceptions\HttpException;
 use App\Repositories\PublicationRepository;
+use Psr\Http\Message\UploadedFileInterface;
 
 class PublicationService
 {
+    private const ALLOWED_MIME_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    private const MAX_FILE_SIZE =
+        5 * 1024 * 1024;
+
     private string $uploadDirectory;
 
     public function __construct(
@@ -2733,13 +2667,10 @@ class PublicationService
 
         $imagePath = null;
 
-        if (
-            isset($files['image']) &&
-            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
-        ) {
-            $imagePath = $this->uploadImage(
-                $files['image']
-            );
+        $uploadedFile = $this->extractImageFile($files);
+
+        if ($uploadedFile !== null) {
+            $imagePath = $this->uploadImage($uploadedFile);
         }
 
         return $this->publicationRepository->create(
@@ -2797,13 +2728,10 @@ class PublicationService
 
         $imagePath = null;
 
-        if (
-            isset($files['image']) &&
-            $files['image']['error'] !== UPLOAD_ERR_NO_FILE
-        ) {
-            $imagePath = $this->uploadImage(
-                $files['image']
-            );
+        $uploadedFile = $this->extractImageFile($files);
+
+        if ($uploadedFile !== null) {
+            $imagePath = $this->uploadImage($uploadedFile);
 
             $this->deleteOldImage(
                 $publication['image_url'] ?? null
@@ -2849,23 +2777,51 @@ class PublicationService
         $this->publicationRepository->delete($id);
     }
 
+    /**
+     * Recupere le fichier "image" envoye par le formulaire, sous forme
+     * d'objet UploadedFileInterface (PSR-7), tel que fourni par Slim.
+     */
+    private function extractImageFile(
+        array $files
+    ): ?UploadedFileInterface {
+
+        $file = $files['image'] ?? null;
+
+        if (!$file instanceof UploadedFileInterface) {
+            return null;
+        }
+
+        if ($file->getError() === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        return $file;
+    }
+
     private function uploadImage(
-        array $file
+        UploadedFileInterface $file
     ): string {
 
-        if ($file['error'] !== UPLOAD_ERR_OK) {
+        if ($file->getError() !== UPLOAD_ERR_OK) {
             throw new HttpException(
                 'Erreur lors de l upload de l image.',
                 422
             );
         }
 
-        if ($file['size'] > 5 * 1024 * 1024) {
+        if ($file->getSize() > self::MAX_FILE_SIZE) {
             throw new HttpException(
-                'L image ne doit pas dÃ©passer 5 Mo.',
+                'L image ne doit pas dÃƒÂ©passer 5 Mo.',
                 422
             );
         }
+
+        $stream = $file->getStream();
+
+        $contents = $stream->getContents();
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))
+            ->buffer($contents);
 
         $allowedTypes = [
             'image/jpeg' => 'jpg',
@@ -2873,13 +2829,9 @@ class PublicationService
             'image/webp' => 'webp'
         ];
 
-        $mime = mime_content_type(
-            $file['tmp_name']
-        );
-
         if (!isset($allowedTypes[$mime])) {
             throw new HttpException(
-                'Format d image non autorisÃ©.',
+                'Format d image non autorisÃƒÂ©.',
                 422
             );
         }
@@ -2891,15 +2843,18 @@ class PublicationService
 
         $destination =
             $this->uploadDirectory
-            . '/'
+            . DIRECTORY_SEPARATOR
             . $filename;
 
-        if (
-            !move_uploaded_file(
-                $file['tmp_name'],
-                $destination
-            )
-        ) {
+        // Le flux a deja ete lu plus haut pour detecter le type MIME :
+        // on repositionne le curseur avant de deplacer le fichier.
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        }
+
+        try {
+            $file->moveTo($destination);
+        } catch (\Throwable $e) {
             throw new HttpException(
                 'Impossible de sauvegarder l image.',
                 500

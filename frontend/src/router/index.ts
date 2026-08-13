@@ -11,6 +11,8 @@ import AnimalDetailsView from '../views/AnimalDetails.vue'
 import NotFoundView from '../views/NotFound.vue'
 import DashboardView from '../views/Dashboard.vue'
 
+import { useAuthStore } from '../stores/auth'
+
 const routes = [
   {
     path: '/',
@@ -85,6 +87,25 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+/*
+ * Une fois connecté, la partie "Home" (page d'accueil / landing page)
+ * ne doit plus être accessible : on redirige automatiquement vers la
+ * page Animaux.
+ */
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+
+  if (!auth.user && !auth.isLoading) {
+    await auth.hydrate()
+  }
+
+  if (to.name === 'home' && auth.isAuthenticated) {
+    return { path: '/animals' }
+  }
+
+  return true
 })
 
 export default router

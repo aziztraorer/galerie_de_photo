@@ -1,19 +1,11 @@
 <template>
-  import {
-  PawPrint,
-  LayoutGrid,
-  Folder,
-  Heart,
-  User,
-  LogOut
-} from 'lucide-vue-next'
   <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
     <div
       class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8"
     >
       <!-- Logo / Nom -->
       <router-link
-        to="/"
+        :to="auth.isAuthenticated ? '/animals' : '/'"
         class="text-lg font-semibold tracking-tight text-black"
       >
         AzizDev Animals
@@ -24,6 +16,7 @@
         class="hidden items-center gap-6 text-sm font-medium text-slate-700 lg:flex"
       >
         <router-link
+          v-if="!auth.isAuthenticated"
           to="/"
           class="transition hover:text-brand-blue"
           exact-active-class="text-brand-blue"
@@ -47,8 +40,16 @@
           Categories
         </router-link>
 
-        <!-- Utilisateur connecté -->
+        <!-- Utilisateur connectÃ© -->
         <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Dashboard
+          </router-link>
+
           <router-link
             to="/favorites"
             class="transition hover:text-brand-blue"
@@ -74,7 +75,7 @@
           </button>
         </template>
 
-        <!-- Utilisateur non connecté -->
+        <!-- Utilisateur non connectÃ© -->
         <template v-else>
           <router-link
             to="/login"
@@ -113,6 +114,7 @@
       <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
 
         <router-link
+          v-if="!auth.isAuthenticated"
           to="/"
           @click="isOpen = false"
         >
@@ -133,8 +135,15 @@
           Categories
         </router-link>
 
-        <!-- Utilisateur connecté -->
+        <!-- Utilisateur connectÃ© -->
         <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            @click="isOpen = false"
+          >
+            Dashboard
+          </router-link>
+
           <router-link
             to="/favorites"
             @click="isOpen = false"
@@ -158,7 +167,7 @@
           </button>
         </template>
 
-        <!-- Utilisateur non connecté -->
+        <!-- Utilisateur non connectÃ© -->
         <template v-else>
           <router-link
             to="/login"
@@ -197,7 +206,7 @@ async function logout() {
   try {
     await logoutUser()
   } catch (error) {
-    console.error('Erreur lors de la déconnexion :', error)
+    console.error('Erreur lors de la dÃ©connexion :', error)
   }
 
   // Supprimer l'utilisateur du store

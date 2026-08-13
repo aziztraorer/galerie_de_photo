@@ -15,6 +15,16 @@ export async function fetchPublications(): Promise<
   return response.data
 }
 
+export async function fetchPublication(
+  id: number
+): Promise<ApiResponse<{ publication: Publication }>> {
+  const response = await api.get<
+    ApiResponse<{ publication: Publication }>
+  >(`/publications/${id}`)
+
+  return response.data
+}
+
 export async function createPublication(
   title: string,
   description: string,
@@ -55,14 +65,14 @@ export async function updatePublication(
     formData.append('image', file)
   }
 
+  // On envoie une vraie requÃªte POST vers /publications/{id}/update plutÃ´t
+  // qu'un PUT multipart (PHP ne remplit pas correctement $_FILES pour les
+  // requÃªtes PUT en multipart/form-data).
   const response = await api.post<
     ApiResponse<{ publication: Publication }>
-  >(`/publications/${id}`, formData, {
+  >(`/publications/${id}/update`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
-    },
-    params: {
-      _method: 'PUT'
     }
   })
 
