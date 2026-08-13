@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use DI\ContainerBuilder;
 use Dotenv\Dotenv;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -12,6 +13,15 @@ require __DIR__ . '/../vendor/autoload.php';
 
 $dotenv = Dotenv::createImmutable(dirname(__DIR__));
 $dotenv->safeLoad();
+
+// Conteneur PHP-DI : sans lui, Slim ne sait pas construire les contrôleurs
+// (ex: CategoryController) qui attendent une dépendance dans leur constructeur
+// (ex: CategoryService), et échoue avec "must be of type X, null given".
+// PHP-DI résout automatiquement ces dépendances via les types déclarés
+// (autowiring), sans configuration supplémentaire nécessaire ici.
+$containerBuilder = new ContainerBuilder();
+$container = $containerBuilder->build();
+AppFactory::setContainer($container);
 
 $app = AppFactory::create();
 
@@ -53,6 +63,6 @@ $app->add(function (
         ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
 });
 
-require __DIR__ . '/../src/Routes/Routes.php';
+(require __DIR__ . '/../src/Routes/Routes.php')($app);
 
 $app->run();

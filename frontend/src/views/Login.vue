@@ -109,10 +109,10 @@ async function submitLogin() {
   loading.value = true
 
   try {
-    const response = await loginUser(
-      email.value,
-      password.value
-    )
+    const response = await loginUser({
+      email: email.value,
+      password: password.value
+    })
 
     if (
       response.success &&
