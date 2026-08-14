@@ -109,13 +109,15 @@
               </p>
             </div>
 
+            <!-- Rôle : visible uniquement pour les administrateurs -->
             <div
+              v-if="auth.user.role === 'admin'"
               class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
             >
               <p class="text-sm text-slate-500">
                 Rôle
               </p>
-              <p class="text-lg font-semibold text-black">
+              <p class="text-lg font-semibold text-brand-blue">
                 {{ auth.user.role || 'Utilisateur' }}
               </p>
             </div>
