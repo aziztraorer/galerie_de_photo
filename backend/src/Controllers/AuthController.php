@@ -138,7 +138,7 @@ class AuthController
 
             if (!$userId) {
                 throw new HttpException(
-                    'Utilisateur non connecté.',
+                    'Utilisateur non connectÃ©.',
                     401
                 );
             }
@@ -172,7 +172,53 @@ class AuthController
                 $response,
                 [
                     'success' => true,
-                    'message' => 'Mot de passe modifié avec succès.'
+                    'message' => 'Mot de passe modifiÃ© avec succÃ¨s.'
+                ]
+            );
+
+        } catch (HttpException $e) {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ],
+                $e->getStatusCode()
+            );
+        }
+    }
+
+    public function updateAvatar(
+        Request $request,
+        Response $response
+    ): Response {
+        try {
+            Session::start();
+
+            $userId = Session::get('user_id');
+
+            if (!$userId) {
+                throw new HttpException(
+                    'Utilisateur non connectÃ©.',
+                    401
+                );
+            }
+
+            $files = $request->getUploadedFiles();
+
+            $user = $this->authService->updateAvatar(
+                (int) $userId,
+                $files
+            );
+
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'message' => 'Photo de profil mise Ã  jour avec succÃ¨s.',
+                    'data' => [
+                        'user' => $user
+                    ]
                 ]
             );
 

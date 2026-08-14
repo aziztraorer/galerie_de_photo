@@ -53,9 +53,7 @@ export async function registerUser(
 /**
  * Récupérer l'utilisateur connecté
  */
-export async function fetchCurrentUser(): Promise<
-  ApiResponse<AuthData>
-> {
+export async function fetchCurrentUser(): Promise<ApiResponse<AuthData>> {
   const response = await api.get<ApiResponse<AuthData>>(
     '/auth/me'
   )
@@ -66,9 +64,7 @@ export async function fetchCurrentUser(): Promise<
 /**
  * Déconnexion
  */
-export async function logoutUser(): Promise<
-  ApiResponse<null>
-> {
+export async function logoutUser(): Promise<ApiResponse<null>> {
   const response = await api.post<ApiResponse<null>>(
     '/auth/logout'
   )
@@ -85,6 +81,29 @@ export async function changeUserPassword(
   const response = await api.post<ApiResponse<null>>(
     '/auth/change-password',
     payload
+  )
+
+  return response.data
+}
+
+/**
+ * Changer la photo de profil de l'utilisateur connecté
+ */
+export async function updateUserAvatar(
+  file: File
+): Promise<ApiResponse<AuthData>> {
+  const formData = new FormData()
+
+  formData.append('avatar', file)
+
+  const response = await api.post<ApiResponse<AuthData>>(
+    '/auth/avatar',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
   )
 
   return response.data

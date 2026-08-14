@@ -100,7 +100,7 @@ class PublicationController
 
             if (!$userId) {
                 throw new HttpException(
-                    'Utilisateur non connecté.',
+                    'Utilisateur non connectÃ©.',
                     401
                 );
             }
@@ -112,12 +112,15 @@ class PublicationController
             }
 
             $files = $request->getUploadedFiles();
+            
+            // Récupérer le fichier image
+            $imageFile = $files['image'] ?? null;
 
             $publication =
                 $this->publicationService->create(
                     (int) $userId,
                     $data,
-                    $files
+                    $imageFile
                 );
 
             return $this->json(
@@ -159,7 +162,7 @@ class PublicationController
 
             if (!$userId) {
                 throw new HttpException(
-                    'Utilisateur non connecté.',
+                    'Utilisateur non connectÃ©.',
                     401
                 );
             }
@@ -171,13 +174,16 @@ class PublicationController
             }
 
             $files = $request->getUploadedFiles();
+            
+            // Récupérer le fichier image
+            $imageFile = $files['image'] ?? null;
 
             $publication =
                 $this->publicationService->update(
                     (int) $userId,
                     (int) $args['id'],
                     $data,
-                    $files
+                    $imageFile
                 );
 
             return $this->json(
@@ -218,7 +224,7 @@ class PublicationController
 
             if (!$userId) {
                 throw new HttpException(
-                    'Utilisateur non connecté.',
+                    'Utilisateur non connectÃ©.',
                     401
                 );
             }

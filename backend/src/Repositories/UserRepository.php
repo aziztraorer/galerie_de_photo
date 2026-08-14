@@ -101,4 +101,20 @@ class UserRepository
             'id' => $userId
         ]);
     }
+
+    public function updateAvatar(
+        int $userId,
+        ?string $avatarUrl
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users
+             SET avatar_url = :avatar_url
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'avatar_url' => $avatarUrl,
+            'id' => $userId
+        ]);
+    }
 }

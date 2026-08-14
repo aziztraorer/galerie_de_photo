@@ -1,0 +1,4264 @@
+﻿
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\animals\AnimalCard.vue
+========================================
+<template>
+  <article
+    class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+  >
+    <div class="h-48 overflow-hidden bg-slate-100">
+      <img
+        v-if="animal.image_url"
+        :src="getImageUrl(animal.image_url)"
+        :alt="animal.name"
+        class="h-full w-full object-cover transition duration-300 hover:scale-105"
+        loading="lazy"
+      />
+
+      <div
+        v-else
+        class="flex h-full items-center justify-center text-sm text-slate-400"
+      >
+        Aucune image
+      </div>
+    </div>
+
+    <div class="space-y-3 p-6">
+      <div>
+        <p
+          v-if="animal.category?.name || animal.category_name"
+          class="text-sm font-semibold uppercase tracking-[0.25em] text-brand-blue"
+        >
+          {{ animal.category?.name || animal.category_name }}
+        </p>
+
+        <h3 class="text-xl font-semibold text-black">
+          {{ animal.name }}
+        </h3>
+
+        <p
+          v-if="animal.scientific_name"
+          class="text-sm italic text-slate-600"
+        >
+          {{ animal.scientific_name }}
+        </p>
+      </div>
+
+      <p
+        v-if="animal.short_description"
+        class="text-sm leading-7 text-slate-700"
+      >
+        {{ animal.short_description }}
+      </p>
+
+      <p
+        v-else
+        class="text-sm text-slate-400"
+      >
+        Aucune description disponible.
+      </p>
+
+      <div class="flex items-center justify-between pt-2">
+        <router-link
+          :to="`/animals/${animal.id}`"
+          class="rounded-full bg-brand-blue px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+        >
+          Voir dÃ©tails
+        </router-link>
+
+        <button
+          type="button"
+          :disabled="loading"
+          :aria-label="
+            isFavorite
+              ? 'Retirer des favoris'
+              : 'Ajouter aux favoris'
+          "
+          class="rounded-full border p-2 transition disabled:cursor-not-allowed disabled:opacity-50"
+          :class="
+            isFavorite
+              ? 'border-red-200 bg-red-50 text-red-500'
+              : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+          "
+          @click="handleFavorite"
+        >
+          <Heart
+            class="h-5 w-5"
+            :fill="isFavorite ? 'currentColor' : 'none'"
+          />
+        </button>
+      </div>
+    </div>
+  </article>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { Heart } from 'lucide-vue-next'
+
+import { useAuthStore } from '../../stores/auth'
+import { toggleFavorite } from '../../services/favoriteService'
+
+import type { Animal } from '../../types'
+
+const props = defineProps<{
+  animal: Animal
+}>()
+
+const auth = useAuthStore()
+
+const isFavorite = ref(false)
+const loading = ref(false)
+
+function getImageUrl(path: string): string {
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://')
+  ) {
+    return path
+  }
+
+  return `http://localhost:8000${
+    path.startsWith('/') ? path : `/${path}`
+  }`
+}
+
+async function handleFavorite(): Promise<void> {
+  if (!auth.isAuthenticated) {
+    return
+  }
+
+  if (loading.value) {
+    return
+  }
+
+  loading.value = true
+
+  try {
+    const response = await toggleFavorite(
+      props.animal.id,
+      isFavorite.value
+    )
+
+    if (response.success) {
+      isFavorite.value = !isFavorite.value
+    }
+  } catch (error) {
+    console.error(
+      'Erreur lors de la modification du favori :',
+      error
+    )
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\categories\CategoryCard.vue
+========================================
+<template>
+  <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+    <div class="flex items-center justify-between">
+      <div class="rounded-2xl bg-brand-light p-3 text-brand-blue">
+        <component :is="iconComponent" class="h-6 w-6" />
+      </div>
+      <span class="text-sm text-slate-500">{{ category.animal_count ?? 0 }} animals</span>
+    </div>
+    <h3 class="mt-6 text-xl font-semibold text-black">{{ category.name }}</h3>
+    <p class="mt-3 text-sm leading-7 text-slate-700">{{ category.description }}</p>
+    <router-link :to="`/categories/${category.id}`" class="mt-6 inline-flex rounded-full bg-brand-blue px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700">Explore Category</router-link>
+  </article>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { Category } from '../../types'
+import { Fish, Bird, PawPrint, Bug, Sparkles, ScanEye, Shield } from 'lucide-vue-next'
+
+const props = defineProps<{ category: Category & { animal_count?: number } }>()
+
+const iconMap: Record<string, any> = {
+  'Mammals': PawPrint,
+  'Birds': Bird,
+  'Reptiles': Shield,
+  'Amphibians': Sparkles,
+  'Fish': Fish,
+  'Insects': Bug,
+  'Arachnids': ScanEye
+}
+
+const iconComponent = computed(() => iconMap[props.category.name] ?? Sparkles)
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\common\LoadingSpinner.vue
+========================================
+<template>
+  <div class="flex items-center justify-center py-12" aria-live="polite">
+    <div class="h-10 w-10 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div>
+  </div>
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\dashboard\Dashboard.vue
+========================================
+<script setup lang="ts">
+
+import {
+  ref,
+  onMounted,
+  nextTick
+} from 'vue'
+
+import { useRouter } from 'vue-router'
+
+import {
+  LayoutDashboard,
+  PawPrint,
+  PlusCircle,
+  User,
+  LogOut,
+  Image as ImageIcon,
+  Menu,
+  X,
+  Pencil
+} from 'lucide-vue-next'
+
+import { useAuthStore } from '../../stores/auth'
+import { logoutUser } from '../../services/authService'
+
+import {
+  fetchPublications,
+  deletePublication as deletePublicationRequest
+} from '../../services/publicationService'
+
+import PublicationForm from './PublicationForm.vue'
+import PublicationCard from './PublicationCard.vue'
+
+import type { Publication } from '../../types'
+
+
+/*
+|--------------------------------------------------------------------------
+| Router / Auth
+|--------------------------------------------------------------------------
+*/
+
+const router = useRouter()
+const auth = useAuthStore()
+
+
+/*
+|--------------------------------------------------------------------------
+| Ãƒâ€°tat
+|--------------------------------------------------------------------------
+*/
+
+const publications = ref<Publication[]>([])
+
+const loading = ref(true)
+
+const error = ref('')
+
+const menuOpen = ref(false)
+
+
+/*
+|--------------------------------------------------------------------------
+| Publication en cours de modification
+|--------------------------------------------------------------------------
+*/
+
+const editingPublication = ref<Publication | null>(null)
+
+
+/*
+|--------------------------------------------------------------------------
+| RÃƒÂ©fÃƒÂ©rence du formulaire
+|--------------------------------------------------------------------------
+*/
+
+const formSection =
+  ref<HTMLElement | null>(null)
+
+
+/*
+|--------------------------------------------------------------------------
+| Charger les publications
+|--------------------------------------------------------------------------
+|
+| IMPORTANT :
+| L'API /publications renvoie les annonces de TOUS les utilisateurs
+| (elles doivent ÃƒÂªtre publiques cÃƒÂ´tÃƒÂ© page "Animaux"). Ici, dans le
+| tableau de bord, on ne garde que celles de l'utilisateur connectÃƒÂ©.
+|
+*/
+
+async function loadPublications() {
+
+  loading.value = true
+
+  error.value = ''
+
+  try {
+
+    const response = await fetchPublications()
+
+    if (!response.success) {
+
+      error.value =
+        response.message ||
+        'Impossible de charger les publications.'
+
+      return
+
+    }
+
+    const allPublications =
+      response.data?.publications || []
+
+    publications.value = auth.user
+      ? allPublications.filter(
+          publication =>
+            Number(publication.user_id) ===
+            Number(auth.user!.id)
+        )
+      : []
+
+  } catch (err) {
+
+    console.error(
+      'Erreur chargement publications :',
+      err
+    )
+
+    error.value =
+      'Impossible de contacter le serveur.'
+
+  } finally {
+
+    loading.value = false
+
+  }
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| MODIFIER UNE PUBLICATION
+|--------------------------------------------------------------------------
+*/
+
+async function editPublication(
+  publication: Publication
+) {
+
+  editingPublication.value = {
+    ...publication
+  }
+
+  /*
+   * Attendre la mise Ãƒ  jour de Vue.
+   */
+
+  await nextTick()
+
+  /*
+   * Aller vers le formulaire.
+   */
+
+  formSection.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| ANNULER MODIFICATION
+|--------------------------------------------------------------------------
+*/
+
+function cancelEdit() {
+
+  editingPublication.value = null
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| PUBLICATION CRÃƒâ€°Ãƒâ€°E
+|--------------------------------------------------------------------------
+*/
+
+async function handlePublished() {
+
+  editingPublication.value = null
+
+  await loadPublications()
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| PUBLICATION MODIFIÃƒâ€°E
+|--------------------------------------------------------------------------
+*/
+
+async function handleUpdated() {
+
+  editingPublication.value = null
+
+  await loadPublications()
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| SUPPRIMER
+|--------------------------------------------------------------------------
+*/
+
+async function deletePublication(
+  id: number
+) {
+
+  const confirmed =
+    window.confirm(
+      'Voulez-vous vraiment supprimer cette publication ?'
+    )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+
+    const response =
+      await deletePublicationRequest(id)
+
+    if (!response.success) {
+
+      window.alert(
+        response.message ||
+        'Impossible de supprimer la publication.'
+      )
+
+      return
+
+    }
+
+    publications.value =
+      publications.value.filter(
+        publication =>
+          publication.id !== id
+      )
+
+  } catch (err) {
+
+    console.error(
+      'Erreur suppression :',
+      err
+    )
+
+    window.alert(
+      'Une erreur est survenue lors de la suppression.'
+    )
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| DÃƒâ€°CONNEXION
+|--------------------------------------------------------------------------
+*/
+
+async function logout() {
+
+  try {
+
+    await logoutUser()
+
+  } catch (err) {
+
+    console.error(
+      'Erreur dÃƒÂ©connexion :',
+      err
+    )
+
+  }
+
+  auth.setUser(null)
+
+  router.push('/login')
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| NAVIGATION
+|--------------------------------------------------------------------------
+*/
+
+function goTo(
+  path: string
+) {
+
+  menuOpen.value = false
+
+  router.push(path)
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| INITIALISATION
+|--------------------------------------------------------------------------
+*/
+
+onMounted(
+  async () => {
+
+    if (!auth.user) {
+
+      await auth.hydrate()
+
+    }
+
+
+    if (!auth.isAuthenticated) {
+
+      router.push('/login')
+
+      return
+
+    }
+
+
+    await loadPublications()
+
+  }
+)
+
+</script>
+
+
+<template>
+
+  <div class="min-h-screen bg-slate-50">
+
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <header
+      class="sticky top-0 z-50 border-b border-slate-200 bg-white"
+    >
+
+      <div
+        class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8"
+      >
+
+        <!-- Logo -->
+
+        <button
+          type="button"
+          class="flex items-center gap-2"
+          @click="goTo('/dashboard')"
+        >
+
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue text-white"
+          >
+
+            <PawPrint class="h-5 w-5" />
+
+          </div>
+
+
+          <div class="text-left">
+
+            <p class="font-bold text-black">
+              AzizDev Animals
+            </p>
+
+            <p class="text-xs text-slate-500">
+              Espace utilisateur
+            </p>
+
+          </div>
+
+        </button>
+
+
+        <!-- Desktop -->
+
+        <div
+          class="hidden items-center gap-4 md:flex"
+        >
+
+          <div class="text-right">
+
+            <p
+              class="text-sm font-semibold text-black"
+            >
+              Bonjour
+              {{ auth.user?.name || 'Utilisateur' }}
+            </p>
+
+            <p class="text-xs text-slate-500">
+              Mon espace
+            </p>
+
+          </div>
+
+
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            @click="logout"
+          >
+
+            <LogOut class="h-4 w-4" />
+
+            DÃƒÂ©connexion
+
+          </button>
+
+        </div>
+
+
+        <!-- Mobile -->
+
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 p-2 md:hidden"
+          aria-label="Ouvrir le menu"
+          @click="menuOpen = !menuOpen"
+        >
+
+          <X
+            v-if="menuOpen"
+            class="h-5 w-5"
+          />
+
+          <Menu
+            v-else
+            class="h-5 w-5"
+          />
+
+        </button>
+
+      </div>
+
+
+      <!-- Menu mobile -->
+
+      <div
+        v-if="menuOpen"
+        class="border-t border-slate-200 bg-white p-4 md:hidden"
+      >
+
+        <button
+          type="button"
+          class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-slate-100"
+          @click="goTo('/dashboard')"
+        >
+
+          <LayoutDashboard class="h-5 w-5" />
+
+          Dashboard
+
+        </button>
+
+
+        <button
+          type="button"
+          class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-slate-100"
+          @click="goTo('/animals')"
+        >
+
+          <PawPrint class="h-5 w-5" />
+
+          Animals
+
+        </button>
+
+
+        <button
+          type="button"
+          class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-slate-100"
+          @click="goTo('/profile')"
+        >
+
+          <User class="h-5 w-5" />
+
+          Profil
+
+        </button>
+
+
+        <button
+          type="button"
+          class="mt-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"
+          @click="logout"
+        >
+
+          <LogOut class="h-5 w-5" />
+
+          DÃƒÂ©connexion
+
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         LAYOUT
+    ====================================================== -->
+
+    <div class="mx-auto flex max-w-7xl">
+
+
+      <!-- SIDEBAR -->
+
+      <aside
+        class="hidden min-h-[calc(100vh-73px)] w-64 border-r border-slate-200 bg-white md:block"
+      >
+
+        <nav class="sticky top-[73px] p-4">
+
+
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-brand-blue"
+            @click="goTo('/dashboard')"
+          >
+
+            <LayoutDashboard class="h-5 w-5" />
+
+            Dashboard
+
+          </button>
+
+
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            @click="goTo('/animals')"
+          >
+
+            <PawPrint class="h-5 w-5" />
+
+            Animals
+
+          </button>
+
+
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            @click="cancelEdit"
+          >
+
+            <PlusCircle class="h-5 w-5" />
+
+            Nouvelle publication
+
+          </button>
+
+
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            @click="goTo('/profile')"
+          >
+
+            <User class="h-5 w-5" />
+
+            Profil
+
+          </button>
+
+
+          <button
+            type="button"
+            class="mt-8 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50"
+            @click="logout"
+          >
+
+            <LogOut class="h-5 w-5" />
+
+            DÃƒÂ©connexion
+
+          </button>
+
+        </nav>
+
+      </aside>
+
+
+      <!-- =====================================================
+           CONTENU
+      ====================================================== -->
+
+      <main
+        class="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8"
+      >
+
+
+        <!-- TITRE -->
+
+        <div class="mb-8">
+
+          <p
+            class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-blue"
+          >
+            Dashboard
+          </p>
+
+          <h1
+            class="mt-2 text-3xl font-bold text-black"
+          >
+            Mes publications
+          </h1>
+
+          <p class="mt-2 text-slate-600">
+            GÃƒÂ©rez vos publications et ajoutez vos animaux.
+          </p>
+
+        </div>
+
+
+        <!-- =================================================
+             FORMULAIRE
+        ================================================== -->
+
+        <section
+          ref="formSection"
+          class="scroll-mt-24 mb-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
+
+          <div
+            class="mb-6 flex items-center gap-3"
+          >
+
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue"
+            >
+
+              <Pencil
+                v-if="editingPublication"
+                class="h-5 w-5"
+              />
+
+              <PlusCircle
+                v-else
+                class="h-5 w-5"
+              />
+
+            </div>
+
+
+            <div>
+
+              <h2
+                class="font-semibold text-black"
+              >
+
+                {{
+                  editingPublication
+                    ? 'Modifier la publication'
+                    : 'Nouvelle publication'
+                }}
+
+              </h2>
+
+
+              <p class="text-sm text-slate-500">
+
+                {{
+                  editingPublication
+                    ? 'Modifiez les informations de votre publication.'
+                    : 'Ajoutez une publication.'
+                }}
+
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <!-- FORMULAIRE -->
+
+          <PublicationForm
+            :publication="editingPublication"
+            @published="handlePublished"
+            @updated="handleUpdated"
+            @cancel="cancelEdit"
+          />
+
+        </section>
+
+
+        <!-- =================================================
+             LISTE
+        ================================================== -->
+
+        <section>
+
+          <div
+            class="mb-5 flex items-center justify-between"
+          >
+
+            <div>
+
+              <h2
+                class="text-xl font-bold text-black"
+              >
+                Mes publications
+              </h2>
+
+              <p
+                class="mt-1 text-sm text-slate-500"
+              >
+
+                {{ publications.length }}
+
+                publication{{
+                  publications.length > 1
+                    ? 's'
+                    : ''
+                }}
+
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <!-- Chargement -->
+
+          <div
+            v-if="loading"
+            class="rounded-3xl border border-slate-200 bg-white p-10 text-center"
+          >
+
+            <p class="text-slate-500">
+              Chargement des publications...
+            </p>
+
+          </div>
+
+
+          <!-- Erreur -->
+
+          <div
+            v-else-if="error"
+            class="rounded-3xl border border-red-200 bg-red-50 p-6"
+          >
+
+            <p class="font-medium text-red-600">
+              {{ error }}
+            </p>
+
+            <button
+              type="button"
+              class="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white"
+              @click="loadPublications"
+            >
+              RÃƒÂ©essayer
+            </button>
+
+          </div>
+
+
+          <!-- Aucune publication -->
+
+          <div
+            v-else-if="publications.length === 0"
+            class="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center"
+          >
+
+            <div
+              class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100"
+            >
+
+              <ImageIcon
+                class="h-8 w-8 text-slate-400"
+              />
+
+            </div>
+
+
+            <h3
+              class="mt-5 text-lg font-semibold text-black"
+            >
+              Aucune publication
+            </h3>
+
+
+            <p
+              class="mt-2 text-sm text-slate-500"
+            >
+              Vous n'avez pas encore crÃƒÂ©ÃƒÂ© de publication.
+            </p>
+
+          </div>
+
+
+          <!-- Publications -->
+
+          <div
+            v-else
+            class="space-y-6"
+          >
+
+            <PublicationCard
+              v-for="publication in publications"
+              :key="publication.id"
+              :publication="publication"
+              @delete="deletePublication"
+              @edit="editPublication"
+            />
+
+          </div>
+
+        </section>
+
+      </main>
+
+    </div>
+
+  </div>
+
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationCard.vue
+========================================
+<template>
+  <article
+    class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+  >
+    <div class="relative h-48 overflow-hidden bg-slate-100">
+      <img
+        v-if="publication.image_url"
+        :src="getImageUrl(publication.image_url)"
+        :alt="publication.title"
+        class="h-full w-full object-cover transition duration-300 hover:scale-105"
+        loading="lazy"
+      />
+
+      <div
+        v-else
+        class="flex h-full items-center justify-center text-sm text-slate-400"
+      >
+        Aucune image
+      </div>
+
+      <span
+        class="absolute left-3 top-3 rounded-full bg-brand-blue px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow"
+      >
+        Annonce
+      </span>
+    </div>
+
+    <div class="space-y-3 p-6">
+      <div>
+        <p
+          v-if="publication.user_name"
+          class="text-sm font-semibold uppercase tracking-[0.25em] text-brand-blue"
+        >
+          PubliÃ© par {{ publication.user_name }}
+        </p>
+
+        <h3 class="text-xl font-semibold text-black">
+          {{ publication.title }}
+        </h3>
+      </div>
+
+      <p
+        v-if="publication.description"
+        class="text-sm leading-7 text-slate-700"
+      >
+        {{ publication.description }}
+      </p>
+
+      <p
+        v-else
+        class="text-sm text-slate-400"
+      >
+        Aucune description disponible.
+      </p>
+
+      <div
+        v-if="isOwner"
+        class="flex items-center justify-end gap-3 pt-2"
+      >
+        <button
+          type="button"
+          :disabled="deleting"
+          class="flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          @click="handleDelete"
+        >
+          <Trash2 class="h-4 w-4" />
+          Supprimer
+        </button>
+
+        <button
+          type="button"
+          class="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          @click="handleEdit"
+        >
+          <Pencil class="h-4 w-4" />
+          Modifier
+        </button>
+      </div>
+    </div>
+  </article>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { Pencil, Trash2 } from 'lucide-vue-next'
+import Swal from 'sweetalert2'
+
+import { useAuthStore } from '../../stores/auth'
+import { getImageUrl } from '../../services/imageService'
+import { deletePublication } from '../../services/publicationService'
+
+import type { Publication } from '../../types'
+
+/*
+ * La confirmation et le retour (succes/erreur) de suppression sont geres
+ * ici avec SweetAlert2 (https://sweetalert2.github.io/), a la place de
+ * window.confirm() qui pouvait etre bloque silencieusement par le
+ * navigateur. L'appel API est fait directement ici ; une fois la
+ * suppression confirmee cote serveur, on emet "deleted" pour que le
+ * parent (Dashboard ou Animaux) retire la carte de sa liste.
+ */
+
+const props = defineProps<{
+  publication: Publication
+}>()
+
+const emit = defineEmits<{
+  edit: [publication: Publication]
+  deleted: [id: number]
+}>()
+
+const auth = useAuthStore()
+
+const deleting = ref(false)
+
+const isOwner = computed(() => {
+  return (
+    auth.isAuthenticated &&
+    auth.user &&
+    Number(auth.user.id) === Number(props.publication.user_id)
+  )
+})
+
+function handleEdit() {
+  emit('edit', props.publication)
+}
+
+async function handleDelete() {
+  const result = await Swal.fire({
+    title: 'ÃŠtes-vous sÃ»r ?',
+    text: 'Cette annonce sera supprimÃ©e dÃ©finitivement.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Oui, supprimer',
+    cancelButtonText: 'Annuler'
+  })
+
+  if (!result.isConfirmed) {
+    return
+  }
+
+  deleting.value = true
+
+  try {
+    const response = await deletePublication(props.publication.id)
+
+    if (!response.success) {
+      await Swal.fire({
+        title: 'Erreur',
+        text:
+          response.message ||
+          'Impossible de supprimer cette annonce.',
+        icon: 'error'
+      })
+
+      return
+    }
+
+    await Swal.fire({
+      title: 'SupprimÃ©e !',
+      text: 'Votre annonce a Ã©tÃ© supprimÃ©e.',
+      icon: 'success'
+    })
+
+    emit('deleted', props.publication.id)
+  } catch (error) {
+    console.error('Erreur suppression annonce :', error)
+
+    await Swal.fire({
+      title: 'Erreur',
+      text: 'Une erreur est survenue lors de la suppression.',
+      icon: 'error'
+    })
+  } finally {
+    deleting.value = false
+  }
+}
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\dashboard\PublicationForm.vue
+========================================
+<script setup lang="ts">
+
+import {
+  ref,
+  computed,
+  watch,
+  onBeforeUnmount
+} from 'vue'
+
+import {
+  ImagePlus,
+  X,
+  Send,
+  Pencil
+} from 'lucide-vue-next'
+
+import {
+  createPublication,
+  updatePublication
+} from '../../services/publicationService'
+
+import { getImageUrl } from '../../services/imageService'
+
+import type { Publication } from '../../types'
+
+
+/*
+|--------------------------------------------------------------------------
+| Props
+|--------------------------------------------------------------------------
+*/
+
+const props = defineProps<{
+  publication?: Publication | null
+}>()
+
+
+/*
+|--------------------------------------------------------------------------
+| Events
+|--------------------------------------------------------------------------
+*/
+
+const emit = defineEmits<{
+  published: [data: any]
+  updated: [data: any]
+  cancel: []
+}>()
+
+
+/*
+|--------------------------------------------------------------------------
+| Formulaire
+|--------------------------------------------------------------------------
+*/
+
+const title = ref('')
+const description = ref('')
+
+const file = ref<File | null>(null)
+const preview = ref<string>('')
+
+const loading = ref(false)
+
+const message = ref('')
+const success = ref(false)
+
+const fileInput =
+  ref<HTMLInputElement | null>(null)
+
+
+/*
+|--------------------------------------------------------------------------
+| Mode ÃƒÂ©dition
+|--------------------------------------------------------------------------
+*/
+
+const isEditing = computed(() => {
+  return !!props.publication
+})
+
+
+/*
+|--------------------------------------------------------------------------
+| Nettoyer la preview blob
+|--------------------------------------------------------------------------
+*/
+
+function clearBlobPreview() {
+
+  if (preview.value.startsWith('blob:')) {
+
+    URL.revokeObjectURL(preview.value)
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Charger publication
+|--------------------------------------------------------------------------
+*/
+
+function loadPublication() {
+
+  clearBlobPreview()
+
+  title.value =
+    props.publication?.title || ''
+
+  description.value =
+    props.publication?.description || ''
+
+  preview.value =
+    props.publication?.image_url
+      ? getImageUrl(props.publication.image_url)
+      : ''
+
+  file.value = null
+
+  message.value = ''
+  success.value = false
+
+  if (fileInput.value) {
+
+    fileInput.value.value = ''
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Observer publication
+|--------------------------------------------------------------------------
+*/
+
+watch(
+  () => props.publication,
+  () => {
+
+    loadPublication()
+
+  },
+  {
+    immediate: true
+  }
+)
+
+
+/*
+|--------------------------------------------------------------------------
+| SÃƒÂ©lection de l'image
+|--------------------------------------------------------------------------
+*/
+
+function selectFile(event: Event) {
+
+  const input =
+    event.target as HTMLInputElement
+
+  const selectedFile =
+    input.files && input.files.length > 0
+      ? input.files[0]
+      : null
+
+  message.value = ''
+
+  clearBlobPreview()
+
+  file.value = selectedFile
+
+  preview.value = selectedFile
+    ? URL.createObjectURL(selectedFile)
+    : ''
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Supprimer l'image sÃƒÂ©lectionnÃƒÂ©e
+|--------------------------------------------------------------------------
+*/
+
+function removeImage() {
+
+  clearBlobPreview()
+
+  file.value = null
+  preview.value = ''
+
+  if (fileInput.value) {
+
+    fileInput.value.value = ''
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Annuler modification
+|--------------------------------------------------------------------------
+*/
+
+function cancelEdit() {
+
+  clearBlobPreview()
+
+  emit('cancel')
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Publier / Modifier
+|--------------------------------------------------------------------------
+*/
+
+async function publish() {
+
+  message.value = ''
+  success.value = false
+
+  if (!title.value.trim()) {
+
+    message.value =
+      'Le titre est obligatoire.'
+
+    return
+
+  }
+
+  /*
+   * Pour une nouvelle publication : image obligatoire.
+   */
+
+  if (
+    !isEditing.value &&
+    !file.value
+  ) {
+
+    message.value =
+      'Veuillez sÃƒÂ©lectionner une image.'
+
+    return
+
+  }
+
+  loading.value = true
+
+  try {
+
+    let response
+
+    if (isEditing.value && props.publication) {
+
+      response = await updatePublication(
+        props.publication.id,
+        title.value.trim(),
+        description.value.trim(),
+        file.value
+      )
+
+    } else {
+
+      response = await createPublication(
+        title.value.trim(),
+        description.value.trim(),
+        file.value
+      )
+
+    }
+
+    if (!response.success) {
+
+      message.value =
+        response.message ||
+        'Une erreur est survenue.'
+
+      success.value = false
+
+      return
+
+    }
+
+    if (!isEditing.value) {
+
+      success.value = true
+
+      message.value =
+        'Publication crÃƒÂ©ÃƒÂ©e avec succÃƒÂ¨s.'
+
+      emit('published', response)
+
+      title.value = ''
+      description.value = ''
+
+      clearBlobPreview()
+
+      file.value = null
+      preview.value = ''
+
+      if (fileInput.value) {
+
+        fileInput.value.value = ''
+
+      }
+
+    } else {
+
+      success.value = true
+
+      message.value =
+        'Publication modifiÃƒÂ©e avec succÃƒÂ¨s.'
+
+      emit('updated', response)
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      'Erreur publication :',
+      error
+    )
+
+    message.value =
+      'Impossible de contacter le serveur.'
+
+    success.value = false
+
+  } finally {
+
+    loading.value = false
+
+  }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Nettoyage
+|--------------------------------------------------------------------------
+*/
+
+onBeforeUnmount(() => {
+
+  clearBlobPreview()
+
+})
+
+</script>
+
+
+<template>
+
+  <form
+    class="space-y-6"
+    @submit.prevent="publish"
+  >
+
+    <!-- =====================================================
+         TITRE
+    ====================================================== -->
+
+    <div>
+
+      <label
+        for="publication-title"
+        class="mb-2 block text-sm font-medium text-slate-700"
+      >
+        Titre de l'annonce
+      </label>
+
+      <input
+        id="publication-title"
+        v-model="title"
+        type="text"
+        placeholder="Ex : Chien disponible Ãƒ  Abidjan"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
+      />
+
+    </div>
+
+
+    <!-- =====================================================
+         DESCRIPTION
+    ====================================================== -->
+
+    <div>
+
+      <label
+        for="publication-description"
+        class="mb-2 block text-sm font-medium text-slate-700"
+      >
+        Description
+      </label>
+
+      <textarea
+        id="publication-description"
+        v-model="description"
+        rows="5"
+        placeholder="DÃƒÂ©crivez votre animal..."
+        class="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100"
+      ></textarea>
+
+    </div>
+
+
+    <!-- =====================================================
+         IMAGE
+    ====================================================== -->
+
+    <div>
+
+      <label
+        for="publication-image"
+        class="mb-2 block text-sm font-medium text-slate-700"
+      >
+        Image
+      </label>
+
+      <label
+        v-if="!preview"
+        for="publication-image"
+        class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-brand-blue hover:bg-blue-50"
+      >
+
+        <ImagePlus class="h-10 w-10 text-slate-400" />
+
+        <p class="mt-3 text-sm font-medium text-slate-700">
+          Ajouter une image
+        </p>
+
+        <p class="mt-1 text-xs text-slate-500">
+          JPG, PNG ou WEBP Ã¢â‚¬â€ 5 Mo maximum
+        </p>
+
+      </label>
+
+      <input
+        id="publication-image"
+        ref="fileInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        class="hidden"
+        @change="selectFile"
+      />
+
+      <div
+        v-if="preview"
+        class="group relative mt-2 aspect-video w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200"
+      >
+
+        <img
+          :src="preview"
+          alt="AperÃƒÂ§u de l'image"
+          class="h-full w-full object-cover"
+        />
+
+        <button
+          type="button"
+          class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
+          @click="removeImage"
+        >
+
+          <X class="h-4 w-4" />
+
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         MESSAGE
+    ====================================================== -->
+
+    <div
+      v-if="message"
+      :class="
+        success
+          ? 'rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700'
+          : 'rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700'
+      "
+    >
+
+      {{ message }}
+
+    </div>
+
+
+    <!-- =====================================================
+         BOUTONS
+    ====================================================== -->
+
+    <div class="flex flex-col gap-3 sm:flex-row">
+
+      <button
+        type="submit"
+        :disabled="loading"
+        class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+
+        <Pencil v-if="isEditing" class="h-5 w-5" />
+        <Send v-else class="h-5 w-5" />
+
+        {{
+          loading
+            ? 'Enregistrement...'
+            : isEditing
+              ? 'Modifier la publication'
+              : "Publier l'annonce"
+        }}
+
+      </button>
+
+      <button
+        v-if="isEditing"
+        type="button"
+        class="rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-100"
+        @click="cancelEdit"
+      >
+        Annuler
+      </button>
+
+    </div>
+
+  </form>
+
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\layout\Footer.vue
+========================================
+<template>
+  <footer class="border-t border-slate-200 bg-slate-950 text-slate-300">
+
+    <div class="border-t border-slate-800 px-6 py-4 text-center text-sm text-slate-400 lg:px-8">
+      Â© 2026 AzizDev. All rights reserved.
+    </div>
+  </footer>
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\components\layout\Navbar.vue
+========================================
+<template>
+  <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div
+      class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8"
+    >
+      <!-- Logo / Nom -->
+      <router-link
+        :to="auth.isAuthenticated ? '/animals' : '/'"
+        class="text-lg font-semibold tracking-tight text-black"
+      >
+        AzizDev Animals
+      </router-link>
+
+      <!-- Menu Desktop -->
+      <nav
+        class="hidden items-center gap-6 text-sm font-medium text-slate-700 lg:flex"
+      >
+        <router-link
+          v-if="!auth.isAuthenticated"
+          to="/"
+          class="transition hover:text-brand-blue"
+          exact-active-class="text-brand-blue"
+        >
+          Home
+        </router-link>
+
+        <router-link
+          to="/animals"
+          class="transition hover:text-brand-blue"
+          active-class="text-brand-blue"
+        >
+          Animals
+        </router-link>
+
+        <router-link
+          to="/categories"
+          class="transition hover:text-brand-blue"
+          active-class="text-brand-blue"
+        >
+          Categories
+        </router-link>
+
+        <!-- Utilisateur connectÃ© -->
+        <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Dashboard
+          </router-link>
+
+          <router-link
+            to="/favorites"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Favorites
+          </router-link>
+
+          <router-link
+            to="/profile"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Profile
+          </router-link>
+
+          <button
+            type="button"
+            :disabled="loggingOut"
+            class="transition hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-50"
+            @click="confirmLogout"
+          >
+            Logout
+          </button>
+        </template>
+
+        <!-- Utilisateur non connectÃ© -->
+        <template v-else>
+          <router-link
+            to="/login"
+            class="transition hover:text-brand-blue"
+            active-class="text-brand-blue"
+          >
+            Login
+          </router-link>
+
+          <router-link
+            to="/register"
+            class="rounded-full bg-brand-blue px-4 py-2 text-white transition hover:bg-blue-700"
+            active-class="bg-blue-700"
+          >
+            Register
+          </router-link>
+        </template>
+      </nav>
+
+      <!-- Bouton menu mobile -->
+      <button
+        type="button"
+        class="rounded-full border border-slate-200 p-2 text-slate-700 lg:hidden"
+        @click="isOpen = !isOpen"
+        aria-label="Toggle menu"
+      >
+        <Menu class="h-5 w-5" />
+      </button>
+    </div>
+
+    <!-- Menu Mobile -->
+    <div
+      v-if="isOpen"
+      class="border-t border-slate-200 bg-white px-6 py-4 lg:hidden"
+    >
+      <div class="flex flex-col gap-3 text-sm font-medium text-slate-700">
+
+        <router-link
+          v-if="!auth.isAuthenticated"
+          to="/"
+          @click="isOpen = false"
+        >
+          Home
+        </router-link>
+
+        <router-link
+          to="/animals"
+          @click="isOpen = false"
+        >
+          Animals
+        </router-link>
+
+        <router-link
+          to="/categories"
+          @click="isOpen = false"
+        >
+          Categories
+        </router-link>
+
+        <!-- Utilisateur connectÃ© -->
+        <template v-if="auth.isAuthenticated">
+          <router-link
+            to="/dashboard"
+            @click="isOpen = false"
+          >
+            Dashboard
+          </router-link>
+
+          <router-link
+            to="/favorites"
+            @click="isOpen = false"
+          >
+            Favorites
+          </router-link>
+
+          <router-link
+            to="/profile"
+            @click="isOpen = false"
+          >
+            Profile
+          </router-link>
+
+          <button
+            type="button"
+            :disabled="loggingOut"
+            class="text-left disabled:cursor-not-allowed disabled:opacity-50"
+            @click="confirmLogout"
+          >
+            Logout
+          </button>
+        </template>
+
+        <!-- Utilisateur non connectÃ© -->
+        <template v-else>
+          <router-link
+            to="/login"
+            @click="isOpen = false"
+          >
+            Login
+          </router-link>
+
+          <router-link
+            to="/register"
+            @click="isOpen = false"
+          >
+            Register
+          </router-link>
+        </template>
+
+      </div>
+    </div>
+  </header>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { Menu } from 'lucide-vue-next'
+import Swal from 'sweetalert2'
+
+import { logoutUser } from '../../services/authService'
+import { useAuthStore } from '../../stores/auth'
+
+/*
+ * La confirmation de dÃ©connexion est gÃ©rÃ©e avec SweetAlert2, sur le
+ * mÃªme modÃ¨le que la confirmation de suppression d'une annonce
+ * (voir components/dashboard/PublicationCard.vue).
+ */
+
+const auth = useAuthStore()
+const router = useRouter()
+
+const isOpen = ref(false)
+const loggingOut = ref(false)
+
+async function confirmLogout() {
+  const result = await Swal.fire({
+    title: 'Se dÃ©connecter ?',
+    text: 'Vous devrez vous reconnecter pour accÃ©der Ã  votre compte.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Oui, se dÃ©connecter',
+    cancelButtonText: 'Annuler'
+  })
+
+  if (!result.isConfirmed) {
+    return
+  }
+
+  await logout()
+}
+
+async function logout() {
+  loggingOut.value = true
+
+  try {
+    await logoutUser()
+  } catch (error) {
+    console.error('Erreur lors de la dÃ©connexion :', error)
+  } finally {
+    loggingOut.value = false
+  }
+
+  // Supprimer l'utilisateur du store
+  auth.setUser(null)
+
+  // Fermer le menu mobile
+  isOpen.value = false
+
+  await Swal.fire({
+    title: 'DÃ©connectÃ©',
+    text: 'Vous avez Ã©tÃ© dÃ©connectÃ© avec succÃ¨s.',
+    icon: 'success',
+    timer: 1500,
+    showConfirmButton: false
+  })
+
+  // Retour vers la page de connexion
+  router.push('/login')
+}
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\router\index.ts
+========================================
+import { createRouter, createWebHistory } from 'vue-router'
+
+import HomeView from '../views/Home.vue'
+import AnimalsView from '../views/Animals.vue'
+import CategoriesView from '../views/Categories.vue'
+import LoginView from '../views/Login.vue'
+import RegisterView from '../views/Register.vue'
+import ProfileView from '../views/Profile.vue'
+import FavoritesView from '../views/Favorites.vue'
+import AnimalDetailsView from '../views/AnimalDetails.vue'
+import NotFoundView from '../views/NotFound.vue'
+import DashboardView from '../views/Dashboard.vue'
+
+import { useAuthStore } from '../stores/auth'
+
+const routes = [
+  {
+    path: '/',
+    name: 'home',
+    component: HomeView
+  },
+
+  {
+    path: '/animals',
+    name: 'animals',
+    component: AnimalsView
+  },
+
+  {
+    path: '/animals/:id',
+    name: 'animal-details',
+    component: AnimalDetailsView,
+    props: true
+  },
+
+  {
+    path: '/categories',
+    name: 'categories',
+    component: CategoriesView
+  },
+
+  {
+    path: '/categories/:id',
+    name: 'category-animals',
+    component: AnimalsView
+  },
+
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView
+  },
+
+  {
+    path: '/register',
+    name: 'register',
+    component: RegisterView
+  },
+
+  // Pages protegees : reservees aux utilisateurs connectes.
+  // "meta.requiresAuth" est lu par le garde de navigation ci-dessous.
+  {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
+    meta: { requiresAuth: true }
+  },
+
+  {
+    path: '/favorites',
+    name: 'favorites',
+    component: FavoritesView,
+    meta: { requiresAuth: true }
+  },
+
+  // Dashboard utilisateur (creation/gestion des annonces) : protege.
+  {
+    path: '/dashboard',
+    name: 'dashboard',
+    component: DashboardView,
+    meta: { requiresAuth: true }
+  },
+
+  // Page 404
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: NotFoundView
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+
+  // Tant qu'on ne sait pas encore si l'utilisateur est connecte
+  // (premier chargement, rechargement de la page...), on verifie
+  // sa session AVANT de decider d'autoriser ou non l'acces a la route.
+  if (!auth.user && !auth.isLoading) {
+    await auth.hydrate()
+  }
+
+  // Route protegee + utilisateur non connecte => redirection vers l'accueil.
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { name: 'home' }
+  }
+
+  /*
+   * Une fois connecte, la partie "Home" (page d'accueil / landing page)
+   * ne doit plus etre accessible : on redirige automatiquement vers la
+   * page Animaux.
+   */
+  if (to.name === 'home' && auth.isAuthenticated) {
+    return { path: '/animals' }
+  }
+
+  return true
+})
+
+export default router
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\animalService.ts
+========================================
+import api from './api'
+import type {
+  Animal,
+  ApiResponse,
+  AnimalsData,
+  Category,
+  CategoriesData
+} from '../types'
+
+export async function fetchAnimals(): Promise<
+  ApiResponse<AnimalsData>
+> {
+  const response = await api.get<ApiResponse<AnimalsData>>(
+    '/animals'
+  )
+
+  return response.data
+}
+
+export async function fetchAnimal(
+  id: number
+): Promise<ApiResponse<{ animal: Animal }>> {
+  const response = await api.get<
+    ApiResponse<{ animal: Animal }>
+  >(`/animals/${id}`)
+
+  return response.data
+}
+
+export async function fetchCategories(): Promise<
+  ApiResponse<CategoriesData>
+> {
+  const response = await api.get<ApiResponse<CategoriesData>>(
+    '/categories'
+  )
+
+  return response.data
+}
+
+export async function fetchCategory(
+  id: number
+): Promise<
+  ApiResponse<{
+    category: Category
+    animals?: Animal[]
+  }>
+> {
+  const response = await api.get<
+    ApiResponse<{
+      category: Category
+      animals?: Animal[]
+    }>
+  >(`/categories/${id}`)
+
+  return response.data
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\api.ts
+========================================
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  withCredentials: true,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json'
+  }
+})
+
+// Pages accessibles sans etre connecte : on n'y force pas de redirection
+// meme si une requete API renvoie 401 (ex: appel "auth/me" au demarrage).
+const PUBLIC_PATHS = ['/', '/login', '/register']
+
+/*
+ * Filet de securite complementaire au garde de route (router/index.ts) :
+ * si la session expire PENDANT que l'utilisateur est deja sur une page
+ * protegee (ex: token de session invalide cote serveur), la premiere
+ * requete API qui echoue avec 401 renvoie automatiquement vers l'accueil.
+ */
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status
+
+    if (
+      status === 401 &&
+      !PUBLIC_PATHS.includes(window.location.pathname)
+    ) {
+      window.location.href = '/'
+    }
+
+    return Promise.reject(error)
+  }
+)
+
+export default api
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\authService.ts
+========================================
+import api from './api'
+import type { ApiResponse, User } from '../types'
+
+export interface LoginPayload {
+  email: string
+  password: string
+}
+
+export interface RegisterPayload {
+  name: string
+  email: string
+  password: string
+}
+
+export interface AuthData {
+  user: User
+}
+
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  confirm_password: string
+}
+
+/**
+ * Connexion
+ */
+export async function loginUser(
+  payload: LoginPayload
+): Promise<ApiResponse<AuthData>> {
+  const response = await api.post<ApiResponse<AuthData>>(
+    '/auth/login',
+    payload
+  )
+
+  return response.data
+}
+
+/**
+ * Inscription
+ */
+export async function registerUser(
+  payload: RegisterPayload
+): Promise<ApiResponse<AuthData>> {
+  const response = await api.post<ApiResponse<AuthData>>(
+    '/auth/register',
+    payload
+  )
+
+  return response.data
+}
+
+/**
+ * RÃ©cupÃ©rer l'utilisateur connectÃ©
+ */
+export async function fetchCurrentUser(): Promise<ApiResponse<AuthData>> {
+  const response = await api.get<ApiResponse<AuthData>>(
+    '/auth/me'
+  )
+
+  return response.data
+}
+
+/**
+ * DÃ©connexion
+ */
+export async function logoutUser(): Promise<ApiResponse<null>> {
+  const response = await api.post<ApiResponse<null>>(
+    '/auth/logout'
+  )
+
+  return response.data
+}
+
+/**
+ * Changer le mot de passe de l'utilisateur connectÃ©
+ */
+export async function changeUserPassword(
+  payload: ChangePasswordPayload
+): Promise<ApiResponse<null>> {
+  const response = await api.post<ApiResponse<null>>(
+    '/auth/change-password',
+    payload
+  )
+
+  return response.data
+}
+
+/**
+ * Changer la photo de profil de l'utilisateur connectÃ©
+ */
+export async function updateUserAvatar(
+  file: File
+): Promise<ApiResponse<AuthData>> {
+  const formData = new FormData()
+
+  formData.append('avatar', file)
+
+  const response = await api.post<ApiResponse<AuthData>>(
+    '/auth/avatar',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
+  )
+
+  return response.data
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\favoriteService.ts
+========================================
+import api from './api'
+import type {
+  ApiResponse,
+  Favorite,
+  FavoritesData
+} from '../types'
+
+export async function fetchFavorites(): Promise<
+  ApiResponse<FavoritesData>
+> {
+  const response = await api.get<
+    ApiResponse<FavoritesData>
+  >('/favorites')
+
+  return response.data
+}
+
+export async function addFavorite(
+  animalId: number
+): Promise<ApiResponse<Favorite>> {
+  const response = await api.post<
+    ApiResponse<Favorite>
+  >('/favorites', {
+    animal_id: animalId
+  })
+
+  return response.data
+}
+
+export async function removeFavorite(
+  animalId: number
+): Promise<ApiResponse<null>> {
+  const response = await api.delete<ApiResponse<null>>(
+    `/favorites/${animalId}`
+  )
+
+  return response.data
+}
+
+export async function toggleFavorite(
+  animalId: number,
+  currentlyFavorite: boolean
+): Promise<ApiResponse<unknown>> {
+  if (currentlyFavorite) {
+    return await removeFavorite(animalId)
+  }
+
+  return await addFavorite(animalId)
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\imageService.ts
+========================================
+import api from './api'
+
+export function getImageUrl(
+  path?: string | null
+): string {
+  if (!path) {
+    return ''
+  }
+
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://')
+  ) {
+    return path
+  }
+
+  if (path.startsWith('/')) {
+    return `http://localhost:8000${path}`
+  }
+
+  return `http://localhost:8000/${path}`
+}
+
+export async function uploadImage(
+  file: File
+): Promise<unknown> {
+  const formData = new FormData()
+
+  formData.append('image', file)
+
+  const response = await api.post(
+    '/images',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
+  )
+
+  return response.data
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\services\publicationService.ts
+========================================
+import api from './api'
+import type {
+  ApiResponse,
+  Publication,
+  PublicationsData
+} from '../types'
+
+export async function fetchPublications(): Promise<
+  ApiResponse<PublicationsData>
+> {
+  const response = await api.get<
+    ApiResponse<PublicationsData>
+  >('/publications')
+
+  return response.data
+}
+
+export async function fetchPublication(
+  id: number
+): Promise<ApiResponse<{ publication: Publication }>> {
+  const response = await api.get<
+    ApiResponse<{ publication: Publication }>
+  >(`/publications/${id}`)
+
+  return response.data
+}
+
+export async function createPublication(
+  title: string,
+  description: string,
+  file: File | null
+): Promise<ApiResponse<{ publication: Publication }>> {
+  const formData = new FormData()
+
+  formData.append('title', title)
+  formData.append('description', description)
+
+  if (file) {
+    formData.append('image', file)
+  }
+
+  const response = await api.post<
+    ApiResponse<{ publication: Publication }>
+  >('/publications', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+
+  return response.data
+}
+
+export async function updatePublication(
+  id: number,
+  title: string,
+  description: string,
+  file: File | null
+): Promise<ApiResponse<{ publication: Publication }>> {
+  const formData = new FormData()
+
+  formData.append('title', title)
+  formData.append('description', description)
+
+  if (file) {
+    formData.append('image', file)
+  }
+
+  // On envoie une vraie requÃƒÂªte POST vers /publications/{id}/update plutÃƒÂ´t
+  // qu'un PUT multipart (PHP ne remplit pas correctement $_FILES pour les
+  // requÃƒÂªtes PUT en multipart/form-data).
+  const response = await api.post<
+    ApiResponse<{ publication: Publication }>
+  >(`/publications/${id}/update`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+
+  return response.data
+}
+
+export async function deletePublication(
+  id: number
+): Promise<ApiResponse<null>> {
+  const response = await api.delete<ApiResponse<null>>(
+    `/publications/${id}`
+  )
+
+  return response.data
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\stores\auth.ts
+========================================
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+
+import {
+  fetchCurrentUser,
+  loginUser,
+  logoutUser,
+  registerUser
+} from '../services/authService'
+
+import type {
+  LoginPayload,
+  RegisterPayload
+} from '../services/authService'
+
+import type { User } from '../types'
+
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref<User | null>(null)
+  const isLoading = ref(false)
+
+  const isAuthenticated = computed(
+    () => user.value !== null
+  )
+
+  function setUser(nextUser: User | null): void {
+    user.value = nextUser
+  }
+
+  async function hydrate(): Promise<void> {
+    try {
+      isLoading.value = true
+
+      const response = await fetchCurrentUser()
+
+      if (response.success && response.data?.user) {
+        user.value = response.data.user
+      } else {
+        user.value = null
+      }
+    } catch {
+      user.value = null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function login(
+    payload: LoginPayload
+  ): Promise<boolean> {
+    try {
+      isLoading.value = true
+
+      const response = await loginUser(payload)
+
+      if (response.success && response.data?.user) {
+        user.value = response.data.user
+        return true
+      }
+
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function register(
+    payload: RegisterPayload
+  ): Promise<boolean> {
+    try {
+      isLoading.value = true
+
+      const response = await registerUser(payload)
+
+      if (response.success && response.data?.user) {
+        user.value = response.data.user
+        return true
+      }
+
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function logout(): Promise<void> {
+    try {
+      isLoading.value = true
+      await logoutUser()
+    } catch (error) {
+      console.error(
+        'Erreur lors de la dÃ©connexion :',
+        error
+      )
+    } finally {
+      user.value = null
+      isLoading.value = false
+    }
+  }
+
+  return {
+    user,
+    isLoading,
+    isAuthenticated,
+    setUser,
+    hydrate,
+    login,
+    register,
+    logout
+  }
+})
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\types\index.ts
+========================================
+export interface User {
+  id: number
+  name: string
+  email: string
+  avatar_url?: string | null
+  role?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Category {
+  id: number
+  name: string
+  description?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Animal {
+  id: number
+  name: string
+  scientific_name?: string | null
+  short_description?: string | null
+  description?: string | null
+  image_url?: string | null
+  category_id?: number | null
+  category_name?: string | null
+  category?: Category | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Publication {
+  id: number
+  user_id: number
+  title: string
+  description?: string
+  image_url?: string
+  user_name?: string | null
+  user_email?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Favorite {
+  id: number
+  user_id: number
+  animal_id: number
+  animal?: Animal | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data?: T
+}
+
+export interface AnimalsData {
+  animals: Animal[]
+}
+
+export interface PublicationsData {
+  publications: Publication[]
+}
+
+export interface CategoriesData {
+  categories: Category[]
+}
+
+export interface FavoritesData {
+  favorites: Favorite[]
+}
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\AnimalDetails.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+    <div class="mx-auto max-w-5xl px-6 py-16 lg:px-8">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">Animal details</p>
+        <h1 class="mt-3 text-3xl font-semibold text-black">Detailed animal information</h1>
+        <p class="mt-4 text-slate-700">This page will display the full animal content and the protected information state for authenticated users.</p>
+      </div>
+    </div>
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Animals.vue
+========================================
+<template>
+  <div class="min-h-screen bg-slate-50">
+    <Navbar />
+
+    <main
+      class="mx-auto max-w-7xl px-6 py-16 lg:px-8"
+    >
+      <div class="mb-10 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p
+            class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+          >
+            Animals
+          </p>
+
+          <h1
+            class="mt-3 text-4xl font-bold text-black"
+          >
+            Discover animals
+          </h1>
+
+          <p
+            class="mt-4 max-w-2xl text-slate-600"
+          >
+            Explore the animals available in our database, ainsi que les
+            annonces publiÃ©es par la communautÃ©.
+          </p>
+        </div>
+
+        <router-link
+          v-if="auth.isAuthenticated"
+          to="/dashboard"
+          class="rounded-full bg-brand-blue px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+        >
+          + Publier une annonce
+        </router-link>
+      </div>
+
+      <div
+        v-if="loading"
+        class="py-20 text-center text-slate-500"
+      >
+        Chargement des animaux...
+      </div>
+
+      <div
+        v-else-if="error"
+        class="rounded-2xl bg-red-50 p-6 text-red-600"
+      >
+        {{ error }}
+      </div>
+
+      <div
+        v-else-if="items.length"
+        class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      >
+        <template
+          v-for="item in items"
+          :key="`${item.type}-${item.data.id}`"
+        >
+          <AnimalCard
+            v-if="item.type === 'animal'"
+            :animal="item.data"
+          />
+
+          <PublicationAdCard
+            v-else
+            :publication="item.data"
+            @edit="goToEditPublication"
+            @deleted="handlePublicationDeleted"
+          />
+        </template>
+      </div>
+
+      <div
+        v-else
+        class="rounded-3xl bg-white p-12 text-center text-slate-500"
+      >
+        Aucun animal ni annonce disponible pour le moment.
+      </div>
+    </main>
+
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+import AnimalCard from '../components/animals/AnimalCard.vue'
+import PublicationAdCard from '../components/dashboard/PublicationCard.vue'
+
+import { useAuthStore } from '../stores/auth'
+
+import {
+  fetchAnimals
+} from '../services/animalService'
+
+import {
+  fetchPublications
+} from '../services/publicationService'
+
+import type { Animal, Publication } from '../types'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+const animals = ref<Animal[]>([])
+const publications = ref<Publication[]>([])
+
+const loading = ref(true)
+const error = ref('')
+
+/*
+ * Les animaux "officiels" de la base et les annonces publiÃ©es par les
+ * utilisateurs sont fusionnÃ©es dans une seule liste affichÃ©e dans la
+ * mÃªme grille : les annonces les plus rÃ©centes en premier, suivies
+ * des animaux existants.
+ */
+const items = computed(() => {
+  const publicationItems = publications.value.map(
+    (publication) => ({
+      type: 'publication' as const,
+      data: publication
+    })
+  )
+
+  const animalItems = animals.value.map((animal) => ({
+    type: 'animal' as const,
+    data: animal
+  }))
+
+  return [...publicationItems, ...animalItems]
+})
+
+async function loadAnimals() {
+  try {
+    const response = await fetchAnimals()
+
+    if (response.success) {
+      animals.value = response.data?.animals ?? []
+    } else {
+      error.value =
+        response.message ||
+        'Impossible de charger les animaux.'
+    }
+  } catch (err) {
+    console.error(err)
+
+    error.value =
+      'Impossible de contacter le serveur.'
+  }
+}
+
+async function loadPublications() {
+  try {
+    const response = await fetchPublications()
+
+    if (response.success) {
+      publications.value =
+        response.data?.publications ?? []
+    }
+  } catch (err) {
+    console.error(
+      'Erreur chargement des annonces :',
+      err
+    )
+  }
+}
+
+/*
+ * "Modifier" depuis la page Animaux : on renvoie l'utilisateur vers le
+ * dashboard, qui lira le paramÃ¨tre "edit" dans l'URL au montage et
+ * ouvrira automatiquement le formulaire prÃ©-rempli avec cette annonce.
+ */
+function goToEditPublication(publication: Publication) {
+  router.push({
+    path: '/dashboard',
+    query: { edit: publication.id }
+  })
+}
+
+/*
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
+ */
+function handlePublicationDeleted(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
+  )
+}
+
+async function loadAll() {
+  loading.value = true
+  error.value = ''
+
+  await Promise.all([
+    loadAnimals(),
+    loadPublications()
+  ])
+
+  loading.value = false
+}
+
+onMounted(() => {
+  loadAll()
+})
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Categories.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+    <div class="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+      <div class="mb-8">
+        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">Categories</p>
+        <h1 class="text-3xl font-semibold text-black">Explore animal categories</h1>
+      </div>
+
+      <LoadingSpinner v-if="loading" />
+      <div v-else-if="error" class="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{{ error }}</div>
+      <div v-else class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <CategoryCard v-for="category in categories" :key="category.id" :category="category" />
+      </div>
+    </div>
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import CategoryCard from '../components/categories/CategoryCard.vue'
+import { fetchCategories } from '../services/animalService'
+import type { Category } from '../types'
+
+const categories = ref<Category[]>([])
+const loading = ref(false)
+const error = ref('')
+
+async function loadCategories() {
+  loading.value = true
+  error.value = ''
+  try {
+    const response = await fetchCategories()
+    categories.value = response.data ?? []
+  } catch {
+    error.value = 'Unable to load categories. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadCategories()
+})
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Dashboard.vue
+========================================
+<template>
+  <div class="min-h-screen bg-slate-50">
+    <Navbar />
+
+    <main class="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+      <div class="mb-10">
+        <p
+          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+        >
+          Dashboard
+        </p>
+
+        <h1 class="mt-3 text-4xl font-bold text-black">
+          Welcome to your dashboard
+        </h1>
+
+        <p class="mt-4 max-w-2xl text-slate-600">
+          Manage your publications, favorites and account.
+        </p>
+      </div>
+
+      <div
+        v-if="loading"
+        class="py-20 text-center text-slate-500"
+      >
+        Chargement...
+      </div>
+
+      <template v-else>
+        <div class="grid gap-6 md:grid-cols-3">
+          <div
+            class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <h2 class="text-lg font-semibold text-black">
+              Publications
+            </h2>
+
+            <p class="mt-3 text-3xl font-bold text-brand-blue">
+              {{ publications.length }}
+            </p>
+          </div>
+
+          <div
+            class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <h2 class="text-lg font-semibold text-black">
+              Favorites
+            </h2>
+
+            <p class="mt-3 text-3xl font-bold text-brand-blue">
+              {{ favoritesCount }}
+            </p>
+
+            <router-link
+              to="/favorites"
+              class="mt-5 inline-block text-sm font-medium text-brand-blue hover:underline"
+            >
+              View favorites
+            </router-link>
+          </div>
+
+          <div
+            class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <h2 class="text-lg font-semibold text-black">
+              Account
+            </h2>
+
+            <p
+              v-if="auth.user"
+              class="mt-3 text-slate-600"
+            >
+              {{ auth.user.name }}
+            </p>
+
+            <router-link
+              to="/profile"
+              class="mt-5 inline-block text-sm font-medium text-brand-blue hover:underline"
+            >
+              View profile
+            </router-link>
+          </div>
+        </div>
+
+        <!-- =================================================
+             PUBLIER / MODIFIER UNE ANNONCE
+        ================================================== -->
+
+        <section
+          ref="formSection"
+          class="scroll-mt-24 mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
+          <div class="mb-6 flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue"
+            >
+              <Pencil v-if="editingPublication" class="h-5 w-5" />
+              <PlusCircle v-else class="h-5 w-5" />
+            </div>
+
+            <div>
+              <h2 class="font-semibold text-black">
+                {{
+                  editingPublication
+                    ? 'Modifier la publication'
+                    : 'Publier une nouvelle annonce'
+                }}
+              </h2>
+
+              <p class="text-sm text-slate-500">
+                {{
+                  editingPublication
+                    ? 'Modifiez les informations de votre annonce.'
+                    : 'Ajoutez un animal Ã  adopter ou Ã  vendre.'
+                }}
+              </p>
+            </div>
+          </div>
+
+          <PublicationForm
+            :publication="editingPublication"
+            @published="handlePublished"
+            @updated="handleUpdated"
+            @cancel="cancelEdit"
+          />
+        </section>
+
+        <!-- =================================================
+             MES PUBLICATIONS
+        ================================================== -->
+
+        <section class="mt-10">
+          <div class="mb-6 flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-bold text-black">
+                Mes publications
+              </h2>
+
+              <p class="mt-1 text-sm text-slate-500">
+                GÃ©rez les annonces que vous avez publiÃ©es.
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="publications.length > 0"
+            class="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+          >
+            <PublicationCard
+              v-for="publication in publications"
+              :key="publication.id"
+              :publication="publication"
+              @edit="editPublication"
+              @deleted="removePublicationFromList"
+            />
+          </div>
+
+          <div
+            v-else
+            class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"
+          >
+            Vous n'avez pas encore publiÃ© d'annonce.
+          </div>
+        </section>
+
+        <!-- =================================================
+             MES FAVORIS
+        ================================================== -->
+
+        <section class="mt-10">
+          <div class="mb-6 flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-bold text-black">
+                Mes favoris
+              </h2>
+
+              <p class="mt-1 text-sm text-slate-500">
+                Les animaux que vous avez ajoutÃ©s Ã  vos favoris.
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="favorites.length > 0"
+            class="flex flex-wrap gap-3"
+          >
+            <router-link
+              v-for="animal in favorites"
+              :key="animal.id"
+              :to="`/animals/${animal.id}`"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-brand-blue hover:text-brand-blue"
+            >
+              {{ animal.name }}
+            </router-link>
+          </div>
+
+          <div
+            v-else
+            class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"
+          >
+            Vous n'avez pas encore ajoutÃ© de favoris.
+          </div>
+        </section>
+      </template>
+    </main>
+
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { nextTick, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { PlusCircle, Pencil } from 'lucide-vue-next'
+
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+import PublicationCard from '../components/dashboard/PublicationCard.vue'
+import PublicationForm from '../components/dashboard/PublicationForm.vue'
+
+import { useAuthStore } from '../stores/auth'
+import {
+  fetchPublications
+} from '../services/publicationService'
+import { fetchFavorites } from '../services/favoriteService'
+
+import type { Publication, Animal } from '../types'
+
+const auth = useAuthStore()
+const route = useRoute()
+
+const publications = ref<Publication[]>([])
+const loading = ref(true)
+const favorites = ref<Animal[]>([])
+const favoritesCount = ref(0)
+
+const editingPublication = ref<Publication | null>(null)
+const formSection = ref<HTMLElement | null>(null)
+
+/*
+ * L'API /publications renvoie les annonces de TOUS les utilisateurs
+ * (elles sont publiques sur la page "Animaux"). Ici, on ne garde que
+ * celles de l'utilisateur connectÃ© pour la gestion personnelle.
+ */
+async function loadDashboard(): Promise<void> {
+  loading.value = true
+
+  try {
+    const response = await fetchPublications()
+
+    if (response.success) {
+      const allPublications = (
+        response.data?.publications ?? []
+      ).map((publication) => ({
+        ...publication,
+        description:
+          publication.description ?? undefined,
+        image_url:
+          publication.image_url ?? undefined
+      }))
+
+      publications.value = auth.user
+        ? allPublications.filter(
+            (publication) =>
+              Number(publication.user_id) ===
+              Number(auth.user!.id)
+          )
+        : []
+    }
+  } catch (error) {
+    console.error(
+      'Erreur lors du chargement du dashboard :',
+      error
+    )
+  } finally {
+    loading.value = false
+  }
+}
+
+/*
+ * Charge les animaux mis en favori par l'utilisateur connectÃ©,
+ * pour les afficher (noms) et mettre Ã  jour le compteur du dashboard.
+ */
+async function loadFavorites(): Promise<void> {
+  try {
+    const response = await fetchFavorites()
+
+    favorites.value = Array.isArray(response.data)
+      ? (response.data as Animal[])
+      : []
+
+    favoritesCount.value = favorites.value.length
+  } catch (error) {
+    console.error(
+      'Erreur lors du chargement des favoris :',
+      error
+    )
+  }
+}
+
+async function editPublication(publication: Publication) {
+  editingPublication.value = { ...publication }
+
+  await nextTick()
+
+  formSection.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+}
+
+function cancelEdit() {
+  editingPublication.value = null
+}
+
+async function handlePublished() {
+  editingPublication.value = null
+  await loadDashboard()
+}
+
+async function handleUpdated() {
+  editingPublication.value = null
+  await loadDashboard()
+}
+
+/*
+ * La confirmation, l'appel API et le message de succes/erreur sont
+ * geres directement dans PublicationCard.vue via SweetAlert2. Ici on
+ * ne fait plus que retirer la publication de la liste locale une fois
+ * que la suppression cote serveur a reussi.
+ */
+function removePublicationFromList(id: number) {
+  publications.value = publications.value.filter(
+    (publication) => publication.id !== id
+  )
+}
+
+onMounted(async () => {
+  if (!auth.user) {
+    await auth.hydrate()
+  }
+
+  await loadDashboard()
+  await loadFavorites()
+
+  /*
+   * Si on arrive depuis la page "Animaux" via le bouton "Modifier"
+   * (lien /dashboard?edit=ID), on ouvre directement le formulaire
+   * prÃ©-rempli avec cette annonce.
+   */
+  const editId = route.query.edit
+
+  if (editId) {
+    const publicationToEdit = publications.value.find(
+      (publication) => String(publication.id) === String(editId)
+    )
+
+    if (publicationToEdit) {
+      await editPublication(publicationToEdit)
+    }
+  }
+})
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Favorites.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+    <div class="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+      <div class="mb-8">
+        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">Favorites</p>
+        <h1 class="mt-3 text-3xl font-semibold text-black">Your favorite animals</h1>
+      </div>
+
+      <LoadingSpinner v-if="loading" />
+      <div v-else-if="error" class="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">{{ error }}</div>
+      <div v-else-if="favorites.length === 0" class="rounded-3xl border border-slate-200 bg-white p-8 text-slate-700">You have not saved any favorites yet.</div>
+      <div v-else class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <AnimalCard v-for="animal in favorites" :key="animal.id" :animal="animal" />
+      </div>
+    </div>
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+import LoadingSpinner from '../components/common/LoadingSpinner.vue'
+import AnimalCard from '../components/animals/AnimalCard.vue'
+import { fetchFavorites } from '../services/favoriteService'
+import type { Animal } from '../types'
+
+const favorites = ref<Animal[]>([])
+const loading = ref(false)
+const error = ref('')
+
+async function loadFavorites() {
+  loading.value = true
+  error.value = ''
+  try {
+    const response = await fetchFavorites()
+    favorites.value = Array.isArray(response.data) ? (response.data as Animal[]) : []
+  } catch {
+    error.value = 'Unable to load favorites.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadFavorites()
+})
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Home.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+    <main class="mx-auto flex max-w-7xl flex-col gap-16 px-6 py-16 lg:px-8">
+      <section class="grid items-center gap-10 rounded-3xl border border-slate-200 bg-brand-light p-10 shadow-sm lg:grid-cols-2">
+        <div class="space-y-6">
+          <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">AzizDev Animals</p>
+          <h1 class="text-4xl font-semibold tracking-tight text-black sm:text-5xl">Discover the animal world with clarity and confidence.</h1>
+          <p class="max-w-xl text-lg text-slate-700">Explore animals, categories, habitats and characteristics through a professional educational platform designed for modern browsing.</p>
+          <div class="flex flex-wrap gap-4">
+            <router-link to="/animals" class="rounded-full bg-brand-blue px-6 py-3 font-medium text-white transition hover:bg-blue-700">Explore Animals</router-link>
+            <router-link to="/register" class="rounded-full border border-brand-blue px-6 py-3 font-medium text-brand-blue transition hover:bg-blue-50">Create Account</router-link>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <img src="https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=900&q=80" alt="Wildlife scene" class="h-80 w-full rounded-xl object-cover" />
+        </div>
+      </section>
+
+      <section class="grid gap-8 lg:grid-cols-2">
+        <div class="rounded-3xl border border-slate-200 p-8">
+          <h2 class="text-2xl font-semibold text-black">About AzizDev Animals</h2>
+          <p class="mt-4 text-slate-700">AzizDev Animals brings together animal information in a clear, modern experience. Guests can explore public content, while registered users unlock richer details and personalized features.</p>
+        </div>
+        <div class="rounded-3xl border border-slate-200 p-8">
+          <h2 class="text-2xl font-semibold text-black">What you can explore</h2>
+          <ul class="mt-4 space-y-3 text-slate-700">
+            <li>Discover animals by category</li>
+            <li>Search by name or scientific name</li>
+            <li>Learn about habitats, diet and characteristics</li>
+            <li>Access richer information by creating an account</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Login.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+
+    <div
+      class="mx-auto flex max-w-2xl flex-col px-6 py-16 lg:px-8"
+    >
+      <div
+        class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+      >
+        <p
+          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+        >
+          Login
+        </p>
+
+        <h1
+          class="mt-3 text-3xl font-semibold text-black"
+        >
+          Access your account
+        </h1>
+
+        <p class="mt-4 text-slate-700">
+          Use your email and password to sign in and unlock richer animal information.
+        </p>
+
+        <form
+          class="mt-8 space-y-4"
+          @submit.prevent="submitLogin"
+        >
+          <div>
+            <label
+              class="mb-2 block text-sm font-medium text-slate-700"
+              for="email"
+            >
+              Email
+            </label>
+
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              autocomplete="email"
+              class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-brand-blue"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              class="mb-2 block text-sm font-medium text-slate-700"
+              for="password"
+            >
+              Password
+            </label>
+
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              autocomplete="current-password"
+              class="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-brand-blue"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            :disabled="loading"
+            class="w-full rounded-full bg-brand-blue px-4 py-3 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {{ loading ? 'Login...' : 'Login' }}
+          </button>
+
+          <p
+            v-if="message"
+            class="text-sm text-red-600"
+          >
+            {{ message }}
+          </p>
+        </form>
+      </div>
+    </div>
+
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+
+import { loginUser } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+
+const email = ref('')
+const password = ref('')
+const message = ref('')
+const loading = ref(false)
+
+async function submitLogin() {
+  message.value = ''
+  loading.value = true
+
+  try {
+    const response = await loginUser({
+      email: email.value,
+      password: password.value
+    })
+
+    if (
+      response.success &&
+      response.data?.user
+    ) {
+      auth.setUser(response.data.user)
+
+      await router.push('/dashboard')
+
+      return
+    }
+
+    message.value =
+      response.message || 'Login failed.'
+  } catch (error: any) {
+    console.error(
+      'Login error:',
+      error
+    )
+
+    message.value =
+      error?.response?.data?.message ||
+      'Unable to log in right now.'
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\NotFound.vue
+========================================
+<template>
+  <div class="flex min-h-screen items-center justify-center bg-white px-6 py-16">
+    <div class="max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">404</p>
+      <h1 class="mt-3 text-3xl font-semibold text-black">Page not found</h1>
+      <p class="mt-4 text-slate-700">The page you are looking for does not exist.</p>
+      <router-link to="/" class="mt-6 inline-flex rounded-full bg-brand-blue px-6 py-3 font-medium text-white hover:bg-blue-700">Return Home</router-link>
+    </div>
+  </div>
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Profile.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+
+    <Navbar />
+
+    <main class="mx-auto max-w-5xl px-6 py-16 lg:px-8">
+
+      <section
+        class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+      >
+
+        <p
+          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+        >
+          Profile
+        </p>
+
+        <h1 class="mt-3 text-3xl font-semibold text-black">
+          Your account
+        </h1>
+
+        <p class="mt-4 text-slate-700">
+          Manage the details tied to your AzizDev Animals account.
+        </p>
+
+        <div
+          v-if="auth.user"
+          class="mt-8 flex flex-col gap-8 sm:flex-row sm:items-start"
+        >
+
+          <div class="flex flex-col items-center gap-3">
+
+            <button
+              type="button"
+              class="group relative h-28 w-28 overflow-hidden rounded-full border border-slate-200 bg-slate-100"
+              :disabled="avatarLoading"
+              @click="triggerAvatarPicker"
+            >
+              <img
+                v-if="avatarUrl"
+                :src="avatarUrl"
+                alt="Photo de profil"
+                class="h-full w-full object-cover"
+              />
+
+              <span
+                v-else
+                class="flex h-full w-full items-center justify-center text-2xl font-semibold text-slate-400"
+              >
+                {{ initials }}
+              </span>
+
+              <span
+                class="absolute inset-0 flex items-center justify-center bg-black/50 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                {{ avatarLoading ? 'Envoi...' : 'Modifier' }}
+              </span>
+            </button>
+
+            <input
+              ref="avatarInput"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="hidden"
+              @change="onAvatarSelected"
+            />
+
+            <p
+              v-if="avatarMessage"
+              :class="
+                avatarSuccess
+                  ? 'text-xs text-green-600'
+                  : 'text-xs text-red-600'
+              "
+            >
+              {{ avatarMessage }}
+            </p>
+          </div>
+
+          <div class="flex-1 space-y-3">
+
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <p class="text-sm text-slate-500">
+                Name
+              </p>
+
+              <p class="text-lg font-semibold text-black">
+                {{ auth.user.name }}
+              </p>
+            </div>
+
+            <div
+              class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <p class="text-sm text-slate-500">
+                Email
+              </p>
+
+              <p class="text-lg font-semibold text-black">
+                {{ auth.user.email }}
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <p
+          v-else
+          class="mt-8 text-slate-700"
+        >
+          You need to log in before you can view your profile.
+        </p>
+
+      </section>
+
+
+      <section
+        v-if="auth.user"
+        class="mt-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+      >
+
+        <p
+          class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue"
+        >
+          Security
+        </p>
+
+        <h2 class="mt-3 text-2xl font-semibold text-black">
+          Modifier le mot de passe
+        </h2>
+
+        <form
+          class="mt-8 max-w-xl space-y-5"
+          @submit.prevent="changePassword"
+        >
+
+          <div>
+
+            <label
+              for="currentPassword"
+              class="mb-2 block text-sm font-medium text-slate-700"
+            >
+              Ancien mot de passe
+            </label>
+
+            <input
+              id="currentPassword"
+              v-model="currentPassword"
+              type="password"
+              autocomplete="current-password"
+              required
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-brand-blue"
+            />
+
+          </div>
+
+
+          <div>
+
+            <label
+              for="newPassword"
+              class="mb-2 block text-sm font-medium text-slate-700"
+            >
+              Nouveau mot de passe
+            </label>
+
+            <input
+              id="newPassword"
+              v-model="newPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-brand-blue"
+            />
+
+          </div>
+
+
+          <div>
+
+            <label
+              for="confirmPassword"
+              class="mb-2 block text-sm font-medium text-slate-700"
+            >
+              Confirmer le nouveau mot de passe
+            </label>
+
+            <input
+              id="confirmPassword"
+              v-model="confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+              class="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-brand-blue"
+            />
+
+          </div>
+
+
+          <p
+            v-if="message"
+            :class="
+              success
+                ? 'text-sm text-green-600'
+                : 'text-sm text-red-600'
+            "
+          >
+            {{ message }}
+          </p>
+
+
+          <button
+            type="submit"
+            :disabled="loading"
+            class="rounded-xl bg-brand-blue px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {{
+              loading
+                ? 'Modification...'
+                : 'Modifier le mot de passe'
+            }}
+          </button>
+
+        </form>
+
+      </section>
+
+    </main>
+
+    <Footer />
+
+  </div>
+</template>
+
+<script setup lang="ts">
+
+import { computed, ref } from 'vue'
+
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+
+import { useAuthStore } from '../stores/auth'
+
+import {
+  changeUserPassword,
+  updateUserAvatar
+} from '../services/authService'
+
+import { getImageUrl } from '../services/imageService'
+
+const auth = useAuthStore()
+
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+
+const loading = ref(false)
+const message = ref('')
+const success = ref(false)
+
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarLoading = ref(false)
+const avatarMessage = ref('')
+const avatarSuccess = ref(false)
+
+const avatarUrl = computed(() =>
+  auth.user?.avatar_url
+    ? getImageUrl(auth.user.avatar_url)
+    : ''
+)
+
+const initials = computed(() => {
+  const name = auth.user?.name?.trim() ?? ''
+
+  if (!name) {
+    return '?'
+  }
+
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join('')
+})
+
+function triggerAvatarPicker() {
+  avatarInput.value?.click()
+}
+
+async function onAvatarSelected(event: Event) {
+
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  avatarMessage.value = ''
+  avatarSuccess.value = false
+  avatarLoading.value = true
+
+  try {
+
+    const response = await updateUserAvatar(file)
+
+    if (!response.success || !response.data?.user) {
+      avatarMessage.value =
+        response.message ||
+        'Impossible de mettre Ã  jour la photo de profil.'
+
+      return
+    }
+
+    auth.setUser(response.data.user)
+
+    avatarSuccess.value = true
+    avatarMessage.value = 'Photo de profil mise Ã  jour.'
+
+  } catch (error) {
+
+    console.error(
+      'Erreur upload photo de profil :',
+      error
+    )
+
+    avatarMessage.value =
+      'Une erreur est survenue lors de l\'envoi de la photo.'
+
+  } finally {
+
+    avatarLoading.value = false
+    target.value = ''
+  }
+}
+
+
+async function changePassword() {
+
+  message.value = ''
+  success.value = false
+
+  if (
+    newPassword.value !==
+    confirmPassword.value
+  ) {
+
+    message.value =
+      'Les nouveaux mots de passe ne correspondent pas.'
+
+    return
+  }
+
+  if (newPassword.value.length < 8) {
+
+    message.value =
+      'Le nouveau mot de passe doit contenir au moins 8 caractÃ¨res.'
+
+    return
+  }
+
+  loading.value = true
+
+  try {
+
+    const response =
+      await changeUserPassword({
+        current_password:
+          currentPassword.value,
+
+        new_password:
+          newPassword.value,
+
+        confirm_password:
+          confirmPassword.value,
+      })
+
+
+    if (!response.success) {
+
+      message.value =
+        response.message ||
+        'Impossible de modifier le mot de passe.'
+
+      return
+    }
+
+
+    success.value = true
+
+    message.value =
+      'Votre mot de passe a Ã©tÃ© modifiÃ© avec succÃ¨s.'
+
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+
+  } catch (error) {
+
+    console.error(
+      'Erreur modification mot de passe :',
+      error
+    )
+
+    message.value =
+      'Une erreur est survenue lors de la modification du mot de passe.'
+
+  } finally {
+
+    loading.value = false
+  }
+}
+
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\views\Register.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white">
+    <Navbar />
+    <div class="mx-auto flex max-w-2xl flex-col px-6 py-16 lg:px-8">
+      <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <p class="text-sm font-semibold uppercase tracking-[0.3em] text-brand-blue">Register</p>
+        <h1 class="mt-3 text-3xl font-semibold text-black">Create your account</h1>
+        <p class="mt-4 text-slate-700">Create an account to unlock richer information and manage favorites.</p>
+
+        <form class="mt-8 space-y-4" @submit.prevent="submitRegister">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700" for="name">Full name</label>
+            <input id="name" v-model="name" type="text" class="w-full rounded-2xl border border-slate-200 px-4 py-3" required />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700" for="email">Email</label>
+            <input id="email" v-model="email" type="email" class="w-full rounded-2xl border border-slate-200 px-4 py-3" required />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700" for="password">Password</label>
+            <input id="password" v-model="password" type="password" class="w-full rounded-2xl border border-slate-200 px-4 py-3" required />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-medium text-slate-700" for="confirmPassword">Confirm password</label>
+            <input id="confirmPassword" v-model="confirmPassword" type="password" class="w-full rounded-2xl border border-slate-200 px-4 py-3" required />
+          </div>
+          <button type="submit" class="w-full rounded-full bg-brand-blue px-4 py-3 font-medium text-white">Create account</button>
+          <p v-if="message" class="text-sm text-slate-700">{{ message }}</p>
+        </form>
+      </div>
+    </div>
+    <Footer />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import Navbar from '../components/layout/Navbar.vue'
+import Footer from '../components/layout/Footer.vue'
+import { registerUser } from '../services/authService'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+const name = ref('')
+const email = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const message = ref('')
+
+async function submitRegister() {
+  message.value = ''
+  try {
+    const response = await registerUser({
+      name: name.value,
+      email: email.value,
+      password: password.value,
+      confirm_password: confirmPassword.value
+    })
+    if (response.success && response.data?.user) {
+      auth.setUser(response.data.user)
+      router.push('/dashboard')
+    } else {
+      message.value = response.message || 'Registration failed.'
+    }
+  } catch {
+    message.value = 'Unable to register right now.'
+  }
+}
+</script>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\App.vue
+========================================
+<template>
+  <div class="min-h-screen bg-white text-black">
+    <router-view />
+  </div>
+</template>
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\main.ts
+========================================
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+
+import App from './App.vue'
+import router from './router'
+import './styles.css'
+
+import { useAuthStore } from './stores/auth'
+
+const app = createApp(App)
+
+const pinia = createPinia()
+
+app.use(pinia)
+app.use(router)
+
+const auth = useAuthStore()
+
+auth.hydrate()
+
+app.mount('#app')
+
+========================================
+C:\xampp\htdocs\cours\frontend\src\styles.css
+========================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #000000;
+  background-color: #ffffff;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #ffffff;
+}
+
+#app {
+  min-height: 100vh;
+}

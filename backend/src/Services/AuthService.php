@@ -7,9 +7,18 @@ namespace App\Services;
 use App\Auth\Session;
 use App\Exceptions\HttpException;
 use App\Repositories\UserRepository;
+use Psr\Http\Message\UploadedFileInterface;
 
 class AuthService
 {
+    private const ALLOWED_AVATAR_MIME_TYPES = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
+    private const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+
     public function __construct(
         private UserRepository $userRepository
     ) {
@@ -40,14 +49,14 @@ class AuthService
 
         if (strlen($password) < 8) {
             throw new HttpException(
-                'Le mot de passe doit contenir au moins 8 caractères.',
+                'Le mot de passe doit contenir au moins 8 caractÃ¨res.',
                 422
             );
         }
 
         if ($this->userRepository->findByEmail($email) !== null) {
             throw new HttpException(
-                'Cette adresse email est déjà utilisée.',
+                'Cette adresse email est dÃ©jÃ  utilisÃ©e.',
                 409
             );
         }
@@ -150,7 +159,7 @@ class AuthService
 
         if (strlen($newPassword) < 8) {
             throw new HttpException(
-                'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+                'Le nouveau mot de passe doit contenir au moins 8 caractÃ¨res.',
                 422
             );
         }
@@ -198,6 +207,128 @@ class AuthService
                 'Impossible de modifier le mot de passe.',
                 500
             );
+        }
+    }
+
+    public function updateAvatar(
+        int $userId,
+        array $files
+    ): array {
+
+        $user = $this->userRepository->findById($userId);
+
+        if ($user === null) {
+            throw new HttpException(
+                'Utilisateur introuvable.',
+                404
+            );
+        }
+
+        $file = $files['avatar'] ?? null;
+
+        if (
+            !$file instanceof UploadedFileInterface ||
+            $file->getError() === UPLOAD_ERR_NO_FILE
+        ) {
+            throw new HttpException(
+                'Aucune image envoyÃ©e.',
+                422
+            );
+        }
+
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            throw new HttpException(
+                'Erreur lors de l\'upload de l\'image.',
+                422
+            );
+        }
+
+        if ($file->getSize() > self::MAX_AVATAR_SIZE) {
+            throw new HttpException(
+                'L\'image ne doit pas dÃ©passer 5 Mo.',
+                422
+            );
+        }
+
+        $stream = $file->getStream();
+        $contents = $stream->getContents();
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))
+            ->buffer($contents);
+
+        if (!isset(self::ALLOWED_AVATAR_MIME_TYPES[$mime])) {
+            throw new HttpException(
+                'Format d\'image non autorisÃ© (jpg, png ou webp uniquement).',
+                422
+            );
+        }
+
+        $uploadDirectory =
+            dirname(__DIR__, 2) . '/public/uploads/avatars';
+
+        if (!is_dir($uploadDirectory)) {
+            mkdir($uploadDirectory, 0775, true);
+        }
+
+        $filename =
+            bin2hex(random_bytes(16))
+            . '.'
+            . self::ALLOWED_AVATAR_MIME_TYPES[$mime];
+
+        $destination =
+            $uploadDirectory
+            . DIRECTORY_SEPARATOR
+            . $filename;
+
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        }
+
+        try {
+            $file->moveTo($destination);
+        } catch (\Throwable $e) {
+            throw new HttpException(
+                'Impossible de sauvegarder l\'image.',
+                500
+            );
+        }
+
+        $avatarUrl = '/uploads/avatars/' . $filename;
+
+        $this->deleteOldAvatar($user['avatar_url'] ?? null);
+
+        if (
+            !$this->userRepository->updateAvatar(
+                $userId,
+                $avatarUrl
+            )
+        ) {
+            throw new HttpException(
+                'Impossible de mettre Ã  jour la photo de profil.',
+                500
+            );
+        }
+
+        $updatedUser = $this->userRepository->findById($userId);
+
+        return $this->sanitizeUser($updatedUser);
+    }
+
+    private function deleteOldAvatar(?string $avatarUrl): void
+    {
+        if (!$avatarUrl) {
+            return;
+        }
+
+        $relativePath = ltrim($avatarUrl, '/');
+
+        $path =
+            dirname(__DIR__, 2)
+            . '/public/'
+            . $relativePath;
+
+        if (is_file($path)) {
+            unlink($path);
         }
     }
 
