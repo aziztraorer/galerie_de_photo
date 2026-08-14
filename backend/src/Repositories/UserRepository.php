@@ -42,16 +42,15 @@ class UserRepository
     ): array {
         $stmt = $this->pdo->prepare(
             'INSERT INTO users
-            (name, email, password, role)
+            (name, email, password)
             VALUES
-            (:name, :email, :password, :role)'
+            (:name, :email, :password)'
         );
 
         $stmt->execute([
             'name' => $data['name'],
             'email' => $data['email'],
-            'password' => $data['password'],
-            'role' => $data['role'] ?? 'user'
+            'password' => $data['password']
         ]);
 
         $id =

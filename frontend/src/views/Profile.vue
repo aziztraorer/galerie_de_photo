@@ -52,18 +52,6 @@
             </p>
           </div>
 
-          <div
-            class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-          >
-            <p class="text-sm text-slate-500">
-              Role
-            </p>
-
-            <p class="text-lg font-semibold text-black">
-              {{ auth.user.role }}
-            </p>
-          </div>
-
         </div>
 
         <p

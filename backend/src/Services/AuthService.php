@@ -58,8 +58,7 @@ class AuthService
             'password' => password_hash(
                 $password,
                 PASSWORD_DEFAULT
-            ),
-            'role' => 'user'
+            )
         ]);
 
         return $this->sanitizeUser($user);
@@ -144,7 +143,7 @@ class AuthService
     ): void {
         if ($currentPassword === '') {
             throw new HttpException(
-                'L’ancien mot de passe est obligatoire.',
+                'L\'ancien mot de passe est obligatoire.',
                 422
             );
         }

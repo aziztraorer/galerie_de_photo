@@ -57,23 +57,28 @@ const routes = [
     component: RegisterView
   },
 
+  // Pages protegees : reservees aux utilisateurs connectes.
+  // "meta.requiresAuth" est lu par le garde de navigation ci-dessous.
   {
     path: '/profile',
     name: 'profile',
-    component: ProfileView
+    component: ProfileView,
+    meta: { requiresAuth: true }
   },
 
   {
     path: '/favorites',
     name: 'favorites',
-    component: FavoritesView
+    component: FavoritesView,
+    meta: { requiresAuth: true }
   },
 
-  // Dashboard utilisateur
+  // Dashboard utilisateur (creation/gestion des annonces) : protege.
   {
     path: '/dashboard',
     name: 'dashboard',
-    component: DashboardView
+    component: DashboardView,
+    meta: { requiresAuth: true }
   },
 
   // Page 404
@@ -89,18 +94,26 @@ const router = createRouter({
   routes
 })
 
-/*
- * Une fois connecté, la partie "Home" (page d'accueil / landing page)
- * ne doit plus être accessible : on redirige automatiquement vers la
- * page Animaux.
- */
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
+  // Tant qu'on ne sait pas encore si l'utilisateur est connecte
+  // (premier chargement, rechargement de la page...), on verifie
+  // sa session AVANT de decider d'autoriser ou non l'acces a la route.
   if (!auth.user && !auth.isLoading) {
     await auth.hydrate()
   }
 
+  // Route protegee + utilisateur non connecte => redirection vers l'accueil.
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return { name: 'home' }
+  }
+
+  /*
+   * Une fois connecte, la partie "Home" (page d'accueil / landing page)
+   * ne doit plus etre accessible : on redirige automatiquement vers la
+   * page Animaux.
+   */
   if (to.name === 'home' && auth.isAuthenticated) {
     return { path: '/animals' }
   }
