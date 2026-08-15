@@ -10,12 +10,12 @@ class Session
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_set_cookie_params([
-                'lifetime' => 0,
+                'lifetime' => 3600,
                 'path' => '/',
-                'domain' => '',
+                'domain' => 'localhost',
                 'secure' => false,
                 'httponly' => true,
-                'samesite' => 'lax',
+                'samesite' => 'Lax',
             ]);
 
             session_start();
@@ -25,21 +25,18 @@ class Session
     public static function set(string $key, mixed $value): void
     {
         self::start();
-
         $_SESSION[$key] = $value;
     }
 
     public static function get(string $key): mixed
     {
         self::start();
-
         return $_SESSION[$key] ?? null;
     }
 
     public static function forget(string $key): void
     {
         self::start();
-
         unset($_SESSION[$key]);
     }
 

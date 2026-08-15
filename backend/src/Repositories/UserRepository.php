@@ -16,6 +16,11 @@ class UserRepository
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
+    public function getPdo(): PDO
+    {
+        return $this->pdo;
+    }
+
     public function findByEmail(string $email): ?array
     {
         $stmt = $this->pdo->prepare(
@@ -24,6 +29,16 @@ class UserRepository
         $stmt->execute(['email' => $email]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM users WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $user ?: null;
     }
 
     public function create(array $data): array
@@ -45,44 +60,6 @@ class UserRepository
         }
 
         return $user;
-    }
-
-    public function findById(int $id): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT * FROM users WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute(['id' => $id]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $user ?: null;
-    }
-
-    public function findAll(): array
-    {
-        $stmt = $this->pdo->query('SELECT * FROM users ORDER BY name ASC');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    public function findAllWithActivity(): array
-    {
-        try {
-            $stmt = $this->pdo->query(
-                'SELECT 
-                    u.*,
-                    TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) AS seconds_since_activity,
-                    CASE 
-                        WHEN u.last_activity IS NOT NULL 
-                        AND TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) < 300 
-                        THEN 1 
-                        ELSE 0 
-                    END AS is_online
-                 FROM users u 
-                 ORDER BY u.name ASC'
-            );
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (\PDOException $e) {
-            return $this->findAll();
-        }
     }
 
     public function updatePassword(int $userId, string $password): bool
@@ -113,13 +90,32 @@ class UserRepository
         }
     }
 
-    public function delete(int $id): bool
+    public function findAll(): array
     {
-        $stmt = $this->pdo->prepare(
-            'DELETE FROM users WHERE id = :id AND role != "admin"'
-        );
-        $stmt->execute(['id' => $id]);
-        return $stmt->rowCount() > 0;
+        $stmt = $this->pdo->query('SELECT * FROM users ORDER BY name ASC');
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function findAllWithActivity(): array
+    {
+        try {
+            $stmt = $this->pdo->query(
+                'SELECT 
+                    u.*,
+                    TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) AS seconds_since_activity,
+                    CASE 
+                        WHEN u.last_activity IS NOT NULL 
+                        AND TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) < 300 
+                        THEN 1 
+                        ELSE 0 
+                    END AS is_online
+                 FROM users u 
+                 ORDER BY u.name ASC'
+            );
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return $this->findAll();
+        }
     }
 
     public function getOnlineUsers(int $minutes = 5): array
@@ -151,5 +147,88 @@ class UserRepository
         } catch (\PDOException $e) {
             return 0;
         }
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM users WHERE id = :id AND role != "admin"'
+        );
+        $stmt->execute(['id' => $id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    // GESTION DES TENTATIVES DE CONNEXION
+    public function getLockStatus(string $email): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT 
+                is_locked,
+                locked_until,
+                login_attempts
+             FROM users 
+             WHERE email = :email 
+             LIMIT 1'
+        );
+        $stmt->execute(['email' => $email]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function incrementLoginAttempt(string $email): int
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users 
+             SET login_attempts = login_attempts + 1,
+                 last_login_attempt = NOW()
+             WHERE email = :email'
+        );
+        $stmt->execute(['email' => $email]);
+        
+        $stmt = $this->pdo->prepare(
+            'SELECT login_attempts FROM users WHERE email = :email LIMIT 1'
+        );
+        $stmt->execute(['email' => $email]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function resetLoginAttempts(string $email): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users 
+             SET login_attempts = 0,
+                 last_login_attempt = NULL,
+                 locked_until = NULL,
+                 is_locked = FALSE
+             WHERE email = :email'
+        );
+        return $stmt->execute(['email' => $email]);
+    }
+
+    public function lockAccount(string $email, int $minutes): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users 
+             SET is_locked = TRUE,
+                 locked_until = DATE_ADD(NOW(), INTERVAL :minutes MINUTE),
+                 login_attempts = 0
+             WHERE email = :email'
+        );
+        return $stmt->execute([
+            'email' => $email,
+            'minutes' => $minutes
+        ]);
+    }
+
+    public function unlockAccount(string $email): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users 
+             SET is_locked = FALSE,
+                 locked_until = NULL,
+                 login_attempts = 0,
+                 last_login_attempt = NULL
+             WHERE email = :email'
+        );
+        return $stmt->execute(['email' => $email]);
     }
 }

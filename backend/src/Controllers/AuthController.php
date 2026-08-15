@@ -7,13 +7,15 @@ namespace App\Controllers;
 use App\Auth\Session;
 use App\Exceptions\HttpException;
 use App\Services\AuthService;
+use App\Repositories\UserRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AuthController
 {
     public function __construct(
-        private AuthService $authService
+        private AuthService $authService,
+        private UserRepository $userRepository
     ) {
     }
 
@@ -232,6 +234,75 @@ class AuthController
                 $e->getStatusCode()
             );
         }
+    }
+
+    public function getLockStatus(
+        Request $request,
+        Response $response
+    ): Response {
+        $params = $request->getQueryParams();
+        $email = $params['email'] ?? '';
+        
+        if ($email === '') {
+            return $this->json(
+                $response,
+                [
+                    'success' => false,
+                    'message' => 'Email requis'
+                ],
+                400
+            );
+        }
+        
+        $lockStatus = $this->userRepository->getLockStatus($email);
+        
+        if (!$lockStatus) {
+            return $this->json(
+                $response,
+                [
+                    'success' => true,
+                    'is_locked' => false,
+                    'remaining_attempts' => null
+                ]
+            );
+        }
+        
+        $isLocked = (bool) $lockStatus['is_locked'];
+        $lockedUntil = $lockStatus['locked_until'];
+        $attempts = (int) $lockStatus['login_attempts'];
+        
+        $lockMinutes = 0;
+        if ($isLocked && $lockedUntil !== null) {
+            $pdo = $this->userRepository->getPdo();
+            $stmt = $pdo->prepare(
+                'SELECT TIMESTAMPDIFF(SECOND, NOW(), :locked_until) AS seconds_remaining'
+            );
+            $stmt->execute(['locked_until' => $lockedUntil]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $secondsRemaining = (int) ($result['seconds_remaining'] ?? 0);
+            $lockMinutes = ceil($secondsRemaining / 60);
+            
+            if ($secondsRemaining <= 0) {
+                $isLocked = false;
+                $this->userRepository->unlockAccount($email);
+            }
+        }
+        
+        $remainingAttempts = null;
+        if (!$isLocked) {
+            $remainingAttempts = max(0, 3 - $attempts);
+        }
+        
+        return $this->json(
+            $response,
+            [
+                'success' => true,
+                'is_locked' => $isLocked,
+                'lock_minutes' => $lockMinutes,
+                'remaining_attempts' => $remainingAttempts,
+                'attempts' => $attempts
+            ]
+        );
     }
 
     private function json(

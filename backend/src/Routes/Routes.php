@@ -16,14 +16,28 @@ use Slim\Routing\RouteCollectorProxy;
 
 return function (App $app): void {
 
+    // Ajouter le middleware CORS en PREMIER
     $app->add(new CorsMiddleware());
 
+    // Ajouter le middleware de parsing du body
+    $app->addBodyParsingMiddleware();
+
+    // Ajouter le middleware de routing
+    $app->addRoutingMiddleware();
+
+    // Gérer TOUTES les requêtes OPTIONS
     $app->options('/{routes:.*}', function ($request, $response) {
-        return $response;
+        return $response
+            ->withHeader('Access-Control-Allow-Origin', 'http://localhost:5173')
+            ->withHeader('Access-Control-Allow-Credentials', 'true')
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD')
+            ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token')
+            ->withHeader('Access-Control-Max-Age', '86400');
     });
 
-    $app->group('/api', function (RouteCollectorProxy $api): void {
+    $app->group('/api', function (RouteCollectorProxy $api) use ($app): void {
 
+        // Routes publiques
         $api->get('/animals', [AnimalController::class, 'list']);
         $api->get('/animals/{id:[0-9]+}', [AnimalController::class, 'show']);
 
@@ -35,11 +49,13 @@ return function (App $app): void {
         $api->post('/auth/login', [AuthController::class, 'login']);
         $api->get('/auth/me', [AuthController::class, 'me']);
         $api->post('/auth/logout', [AuthController::class, 'logout']);
+        $api->get('/auth/lock-status', [AuthController::class, 'getLockStatus']);
 
         $api->get('/publications', [PublicationController::class, 'list']);
         $api->get('/publications/{id:[0-9]+}', [PublicationController::class, 'show']);
 
-        $api->group('', function (RouteCollectorProxy $protected): void {
+        // Routes protégées par authentification
+        $api->group('', function (RouteCollectorProxy $protected) use ($app): void {
 
             $protected->post('/auth/change-password', [AuthController::class, 'changePassword']);
             $protected->post('/auth/avatar', [AuthController::class, 'updateAvatar']);
@@ -55,7 +71,8 @@ return function (App $app): void {
 
         })->add(new AuthMiddleware());
 
-        $api->group('/admin', function (RouteCollectorProxy $admin): void {
+        // Routes Admin
+        $api->group('/admin', function (RouteCollectorProxy $admin) use ($app): void {
             $admin->get('/users', [AdminController::class, 'getUsers']);
             $admin->get('/users/online', [AdminController::class, 'getOnlineUsers']);
             $admin->delete('/users/{id:[0-9]+}', [AdminController::class, 'deleteUser']);

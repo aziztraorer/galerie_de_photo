@@ -19,7 +19,10 @@ class AuthMiddleware
     ): Response {
         Session::start();
 
-        $userId = Session::get('user_id');
+        $userId = $_SESSION['user_id'] ?? null;
+        if (!$userId) {
+            $userId = Session::get('user_id');
+        }
 
         if (!$userId) {
             return $this->unauthorized();

@@ -22,89 +22,51 @@ export interface ChangePasswordPayload {
   confirm_password: string
 }
 
-/**
- * Connexion
- */
-export async function loginUser(
-  payload: LoginPayload
-): Promise<ApiResponse<AuthData>> {
-  const response = await api.post<ApiResponse<AuthData>>(
-    '/auth/login',
-    payload
-  )
-
-  return response.data
-}
-
-/**
- * Inscription
- */
-export async function registerUser(
-  payload: RegisterPayload
-): Promise<ApiResponse<AuthData>> {
-  const response = await api.post<ApiResponse<AuthData>>(
-    '/auth/register',
-    payload
-  )
-
-  return response.data
-}
-
-/**
- * Récupérer l'utilisateur connecté
- */
-export async function fetchCurrentUser(): Promise<ApiResponse<AuthData>> {
-  const response = await api.get<ApiResponse<AuthData>>(
-    '/auth/me'
-  )
-
-  return response.data
-}
-
-/**
- * Déconnexion
- */
-export async function logoutUser(): Promise<ApiResponse<null>> {
-  const response = await api.post<ApiResponse<null>>(
-    '/auth/logout'
-  )
-
-  return response.data
-}
-
-/**
- * Changer le mot de passe de l'utilisateur connecté
- */
-export async function changeUserPassword(
-  payload: ChangePasswordPayload
-): Promise<ApiResponse<null>> {
-  const response = await api.post<ApiResponse<null>>(
-    '/auth/change-password',
-    payload
-  )
-
-  return response.data
-}
-
-/**
- * Changer la photo de profil de l'utilisateur connecté
- */
-export async function updateUserAvatar(
-  file: File
-): Promise<ApiResponse<AuthData>> {
-  const formData = new FormData()
-
-  formData.append('avatar', file)
-
-  const response = await api.post<ApiResponse<AuthData>>(
-    '/auth/avatar',
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+export async function loginUser(payload: LoginPayload): Promise<ApiResponse<AuthData>> {
+  try {
+    const response = await api.post<ApiResponse<AuthData>>('/auth/login', payload)
+    return response.data
+  } catch (error: any) {
+    // Gérer les erreurs 423 (compte bloqué)
+    if (error?.response?.status === 423) {
+      return {
+        success: false,
+        message: error.response.data?.message || 'Compte bloqué. Veuillez réessayer plus tard.'
       }
     }
-  )
+    throw error
+  }
+}
+
+export async function registerUser(payload: RegisterPayload): Promise<ApiResponse<AuthData>> {
+  const response = await api.post<ApiResponse<AuthData>>('/auth/register', payload)
+  return response.data
+}
+
+export async function fetchCurrentUser(): Promise<ApiResponse<AuthData>> {
+  const response = await api.get<ApiResponse<AuthData>>('/auth/me')
+  return response.data
+}
+
+export async function logoutUser(): Promise<ApiResponse<null>> {
+  const response = await api.post<ApiResponse<null>>('/auth/logout')
+  return response.data
+}
+
+export async function changeUserPassword(payload: ChangePasswordPayload): Promise<ApiResponse<null>> {
+  const response = await api.post<ApiResponse<null>>('/auth/change-password', payload)
+  return response.data
+}
+
+export async function updateUserAvatar(file: File): Promise<ApiResponse<AuthData>> {
+  const formData = new FormData()
+  formData.append('avatar', file)
+
+  const response = await api.post<ApiResponse<AuthData>>('/auth/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
 
   return response.data
 }
