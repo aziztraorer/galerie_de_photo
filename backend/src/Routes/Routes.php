@@ -7,6 +7,7 @@ use App\Controllers\AuthController;
 use App\Controllers\CategoryController;
 use App\Controllers\FavoriteController;
 use App\Controllers\PublicationController;
+use App\Controllers\AdminController;
 use App\Middleware\AdminMiddleware;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CorsMiddleware;
@@ -15,7 +16,6 @@ use Slim\Routing\RouteCollectorProxy;
 
 return function (App $app): void {
 
-    // Ajouter le middleware CORS à toutes les routes
     $app->add(new CorsMiddleware());
 
     $app->options('/{routes:.*}', function ($request, $response) {
@@ -54,5 +54,12 @@ return function (App $app): void {
             $protected->delete('/publications/{id:[0-9]+}', [PublicationController::class, 'delete']);
 
         })->add(new AuthMiddleware());
+
+        $api->group('/admin', function (RouteCollectorProxy $admin): void {
+            $admin->get('/users', [AdminController::class, 'getUsers']);
+            $admin->get('/users/online', [AdminController::class, 'getOnlineUsers']);
+            $admin->delete('/users/{id:[0-9]+}', [AdminController::class, 'deleteUser']);
+        })->add(new AdminMiddleware())->add(new AuthMiddleware());
+
     });
 };

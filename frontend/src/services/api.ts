@@ -9,16 +9,8 @@ const api = axios.create({
   }
 })
 
-// Pages accessibles sans etre connecte : on n'y force pas de redirection
-// meme si une requete API renvoie 401 (ex: appel "auth/me" au demarrage).
 const PUBLIC_PATHS = ['/', '/login', '/register']
 
-/*
- * Filet de securite complementaire au garde de route (router/index.ts) :
- * si la session expire PENDANT que l'utilisateur est deja sur une page
- * protegee (ex: token de session invalide cote serveur), la premiere
- * requete API qui echoue avec 401 renvoie automatiquement vers l'accueil.
- */
 api.interceptors.response.use(
   (response) => response,
   (error) => {

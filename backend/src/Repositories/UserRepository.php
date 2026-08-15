@@ -13,108 +13,143 @@ class UserRepository
 
     public function __construct(?PDO $pdo = null)
     {
-        $this->pdo =
-            $pdo ??
-            Database::getInstance()->getPdo();
+        $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-    public function findByEmail(
-        string $email
-    ): ?array {
+    public function findByEmail(string $email): ?array
+    {
         $stmt = $this->pdo->prepare(
-            'SELECT * FROM users
-             WHERE email = :email
-             LIMIT 1'
+            'SELECT * FROM users WHERE email = :email LIMIT 1'
         );
-
-        $stmt->execute([
-            'email' => $email
-        ]);
-
-        $row =
-            $stmt->fetch(PDO::FETCH_ASSOC);
-
+        $stmt->execute(['email' => $email]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
 
-    public function create(
-        array $data
-    ): array {
+    public function create(array $data): array
+    {
         $stmt = $this->pdo->prepare(
-            'INSERT INTO users
-            (name, email, password)
-            VALUES
-            (:name, :email, :password)'
+            'INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, "user")'
         );
-
         $stmt->execute([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => $data['password']
         ]);
 
-        $id =
-            (int) $this->pdo->lastInsertId();
-
+        $id = (int) $this->pdo->lastInsertId();
         $user = $this->findById($id);
 
         if ($user === null) {
-            throw new \RuntimeException(
-                'User creation failed.'
-            );
+            throw new \RuntimeException('User creation failed.');
         }
 
         return $user;
     }
 
-    public function findById(
-        int $id
-    ): ?array {
+    public function findById(int $id): ?array
+    {
         $stmt = $this->pdo->prepare(
-            'SELECT * FROM users
-             WHERE id = :id
-             LIMIT 1'
+            'SELECT * FROM users WHERE id = :id LIMIT 1'
         );
-
-        $stmt->execute([
-            'id' => $id
-        ]);
-
-        $user =
-            $stmt->fetch(PDO::FETCH_ASSOC);
-
+        $stmt->execute(['id' => $id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
         return $user ?: null;
     }
 
-    public function updatePassword(
-        int $userId,
-        string $password
-    ): bool {
-        $stmt = $this->pdo->prepare(
-            'UPDATE users
-             SET password = :password
-             WHERE id = :id'
-        );
-
-        return $stmt->execute([
-            'password' => $password,
-            'id' => $userId
-        ]);
+    public function findAll(): array
+    {
+        $stmt = $this->pdo->query('SELECT * FROM users ORDER BY name ASC');
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function updateAvatar(
-        int $userId,
-        ?string $avatarUrl
-    ): bool {
-        $stmt = $this->pdo->prepare(
-            'UPDATE users
-             SET avatar_url = :avatar_url
-             WHERE id = :id'
-        );
+    public function findAllWithActivity(): array
+    {
+        try {
+            $stmt = $this->pdo->query(
+                'SELECT 
+                    u.*,
+                    TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) AS seconds_since_activity,
+                    CASE 
+                        WHEN u.last_activity IS NOT NULL 
+                        AND TIMESTAMPDIFF(SECOND, u.last_activity, NOW()) < 300 
+                        THEN 1 
+                        ELSE 0 
+                    END AS is_online
+                 FROM users u 
+                 ORDER BY u.name ASC'
+            );
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return $this->findAll();
+        }
+    }
 
-        return $stmt->execute([
-            'avatar_url' => $avatarUrl,
-            'id' => $userId
-        ]);
+    public function updatePassword(int $userId, string $password): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users SET password = :password WHERE id = :id'
+        );
+        return $stmt->execute(['password' => $password, 'id' => $userId]);
+    }
+
+    public function updateAvatar(int $userId, ?string $avatarUrl): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users SET avatar_url = :avatar_url WHERE id = :id'
+        );
+        return $stmt->execute(['avatar_url' => $avatarUrl, 'id' => $userId]);
+    }
+
+    public function updateLastActivity(int $userId): bool
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                'UPDATE users SET last_activity = NOW() WHERE id = :id'
+            );
+            return $stmt->execute(['id' => $userId]);
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM users WHERE id = :id AND role != "admin"'
+        );
+        $stmt->execute(['id' => $id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function getOnlineUsers(int $minutes = 5): array
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                'SELECT * FROM users 
+                 WHERE last_activity IS NOT NULL 
+                 AND TIMESTAMPDIFF(SECOND, last_activity, NOW()) < :seconds
+                 ORDER BY last_activity DESC'
+            );
+            $stmt->execute(['seconds' => $minutes * 60]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
+    public function getOnlineCount(int $minutes = 5): int
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                'SELECT COUNT(*) FROM users 
+                 WHERE last_activity IS NOT NULL 
+                 AND TIMESTAMPDIFF(SECOND, last_activity, NOW()) < :seconds'
+            );
+            $stmt->execute(['seconds' => $minutes * 60]);
+            return (int) $stmt->fetchColumn();
+        } catch (\PDOException $e) {
+            return 0;
+        }
     }
 }

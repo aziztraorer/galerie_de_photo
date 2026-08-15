@@ -16,28 +16,32 @@ class AdminMiddleware
         Handler $handler
     ): Response {
         $user = $request->getAttribute('user');
-
-        if (
-            !$user ||
-            ($user['role'] ?? 'user') !== 'admin'
-        ) {
-            $response = new SlimResponse();
-
-            $response->getBody()->write(
-                json_encode([
-                    'success' => false,
-                    'message' => 'Forbidden.'
-                ])
-            );
-
-            return $response
-                ->withStatus(403)
-                ->withHeader(
-                    'Content-Type',
-                    'application/json'
-                );
+        
+        if (!$user) {
+            return $this->forbidden('Authentication required.');
         }
-
+        
+        $role = $user['role'] ?? 'user';
+        
+        if ($role !== 'admin') {
+            return $this->forbidden('You do not have admin privileges.');
+        }
+        
         return $handler->handle($request);
+    }
+
+    private function forbidden(string $message): Response
+    {
+        $response = new SlimResponse();
+        $response->getBody()->write(
+            json_encode([
+                'success' => false,
+                'message' => $message
+            ])
+        );
+
+        return $response
+            ->withStatus(403)
+            ->withHeader('Content-Type', 'application/json');
     }
 }

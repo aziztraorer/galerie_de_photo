@@ -15,7 +15,6 @@ class CorsMiddleware
         Request $request,
         Handler $handler
     ): Response {
-        // Gérer les requêtes OPTIONS (preflight)
         if ($request->getMethod() === 'OPTIONS') {
             $response = new SlimResponse();
             return $this->addCorsHeaders($response);

@@ -38,6 +38,75 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
+import { useRouter } from 'vue-router'
 import Navbar from '../components/layout/Navbar.vue'
 import Footer from '../components/layout/Footer.vue'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+// Variable pour l'intervalle de rafraîchissement
+let homeRefreshInterval: ReturnType<typeof setInterval> | null = null
+const REFRESH_INTERVAL_MS = 20000 // 20 secondes
+
+// Fonction pour rafraîchir les données de session sans recharger la page
+async function refreshSessionData(): Promise<void> {
+  // Sauvegarder la position de scroll
+  const scrollY = window.scrollY
+  
+  try {
+    // Vérifier si l'utilisateur est toujours connecté
+    if (auth.user) {
+      await auth.hydrate()
+    }
+  } catch (error) {
+    // Erreur silencieuse
+  } finally {
+    // Restaurer la position de scroll
+    window.scrollTo(0, scrollY)
+  }
+}
+
+// Démarrer le rafraîchissement automatique
+function startAutoRefresh(): void {
+  stopAutoRefresh()
+  homeRefreshInterval = setInterval(() => {
+    refreshSessionData()
+  }, REFRESH_INTERVAL_MS)
+}
+
+// Arrêter le rafraîchissement automatique
+function stopAutoRefresh(): void {
+  if (homeRefreshInterval) {
+    clearInterval(homeRefreshInterval)
+    homeRefreshInterval = null
+  }
+}
+
+onMounted(() => {
+  // Si l'utilisateur est connecté sur la page d'accueil, le rediriger vers animals
+  if (auth.user) {
+    router.push('/animals')
+    return
+  }
+  
+  // Démarrer le rafraîchissement automatique
+  startAutoRefresh()
+})
+
+// Gérer le cas où le composant est activé (keep-alive)
+onActivated(() => {
+  startAutoRefresh()
+})
+
+// Gérer le cas où le composant est désactivé (keep-alive)
+onDeactivated(() => {
+  stopAutoRefresh()
+})
+
+onUnmounted(() => {
+  stopAutoRefresh()
+})
 </script>

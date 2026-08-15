@@ -46,13 +46,18 @@ class PublicationRepository
              LIMIT 1'
         );
 
-        $stmt->execute([
-            'id' => $id
-        ]);
-
+        $stmt->execute(['id' => $id]);
         $publication = $stmt->fetch(PDO::FETCH_ASSOC);
-
         return $publication ?: null;
+    }
+
+    public function findByUserId(int $userId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT * FROM publications WHERE user_id = :user_id ORDER BY created_at DESC'
+        );
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function create(
@@ -61,7 +66,6 @@ class PublicationRepository
         string $description,
         ?string $image
     ): array {
-
         $stmt = $this->pdo->prepare(
             'INSERT INTO publications
                 (user_id, title, description, image_url)
@@ -76,9 +80,7 @@ class PublicationRepository
             'image_url' => $image
         ]);
 
-        return $this->findById(
-            (int) $this->pdo->lastInsertId()
-        );
+        return $this->findById((int) $this->pdo->lastInsertId());
     }
 
     public function update(
@@ -87,18 +89,12 @@ class PublicationRepository
         string $description,
         ?string $image = null
     ): bool {
-
         if ($image !== null) {
-
             $stmt = $this->pdo->prepare(
                 'UPDATE publications
-                 SET
-                    title = :title,
-                    description = :description,
-                    image_url = :image_url
+                 SET title = :title, description = :description, image_url = :image_url
                  WHERE id = :id'
             );
-
             return $stmt->execute([
                 'title' => $title,
                 'description' => $description,
@@ -108,13 +104,8 @@ class PublicationRepository
         }
 
         $stmt = $this->pdo->prepare(
-            'UPDATE publications
-             SET
-                title = :title,
-                description = :description
-             WHERE id = :id'
+            'UPDATE publications SET title = :title, description = :description WHERE id = :id'
         );
-
         return $stmt->execute([
             'title' => $title,
             'description' => $description,
@@ -124,13 +115,14 @@ class PublicationRepository
 
     public function delete(int $id): bool
     {
-        $stmt = $this->pdo->prepare(
-            'DELETE FROM publications
-             WHERE id = :id'
-        );
+        $stmt = $this->pdo->prepare('DELETE FROM publications WHERE id = :id');
+        return $stmt->execute(['id' => $id]);
+    }
 
-        return $stmt->execute([
-            'id' => $id
-        ]);
+    public function deleteByUserId(int $userId): bool
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM publications WHERE user_id = :user_id');
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->rowCount() > 0;
     }
 }

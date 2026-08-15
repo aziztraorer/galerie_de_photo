@@ -15,7 +15,6 @@ app.use(pinia)
 app.use(router)
 
 const auth = useAuthStore()
-
 auth.hydrate()
 
 app.mount('#app')

@@ -26,24 +26,21 @@ class AuthMiddleware
         }
 
         $userRepository = new UserRepository();
-
         $user = $userRepository->findById((int) $userId);
 
         if (!$user) {
             Session::destroy();
-
             return $this->unauthorized();
         }
 
-        return $handler->handle(
-            $request->withAttribute('user', $user)
-        );
+        $request = $request->withAttribute('user', $user);
+        
+        return $handler->handle($request);
     }
 
     private function unauthorized(): Response
     {
         $response = new SlimResponse();
-
         $response->getBody()->write(
             json_encode([
                 'success' => false,
@@ -53,9 +50,6 @@ class AuthMiddleware
 
         return $response
             ->withStatus(401)
-            ->withHeader(
-                'Content-Type',
-                'application/json'
-            );
+            ->withHeader('Content-Type', 'application/json');
     }
 }
